@@ -1,0 +1,214 @@
+%%%%%%%%%%%%%%% Updated by MR March 2007 %%%%%%%%%%%%%%%%
+\documentclass[12pt]{article}
+\usepackage{a4wide}
+
+\newcommand{\al}{$<$}
+\newcommand{\ar}{$>$}
+
+\parindent 0pt
+\parskip 6pt
+
+\begin{document}
+
+\thispagestyle{empty}
+
+\rightline{\large\emph{William Kenyon}}
+\medskip
+\rightline{\large\emph{Emmanuel College}}
+\medskip
+\rightline{\large\emph{wk249}}
+
+\vfil
+
+\centerline{\large Part II Computer Science Project Proposal}
+\vspace{0.4in}
+\centerline{\Large\bf A Monte Carlo Tree Search Library in Haskell}
+\vspace{0.3in}
+\centerline{\large \emph{\today}}
+
+\vfil
+\eject
+
+\section*{Introduction and Description of the Work}
+
+Monte Carlo Tree Search (MCTS) has been used in recent papers to produce good agents for two player perfect information games like Go as an alternative to using complex expert knowledge and pattern recognition.
+I would like to build a library which implements the MCTS in Haskell allowing people to use it as the core of agents for other games.
+I would then like to try out my library by writing an agent for one or more sample games.
+
+\section*{Starting Point}
+
+The Foundations of Functional Programming course taught in part IA will help me think about problems from a functional point of view. I have also spent some time in the summer reading up on the differences\footnote{Simple differences in syntax and semantics, but I have yet to learn about some of the more complex language features of Haskell.} between ML and Haskell.\par
+
+
+\section*{Substance and Structure of the Project}
+
+A good description of how Monte Carlo Tree Search works can be found in \cite{go}. I'd like to keep the tree search as general and versatile as possible so that many different games \& modifications on the search can be implemented. I shall also provide good defaults (e.g. use UTC as described in \cite{go} as default but still allow the user to write their own selection function) so that you can very quickly code an implementation for a game and have the agent work (even though some games will have terrible performance without modifying things a bit).
+
+In parallel with building the library, I will build a tic-tac-toe\footnote{I'm aware that tic-tac-toe is trivial, but I just want a very simple game to use while building the library. It is all that I need to show my library works and is simple enough that I can check to see the algorithm produced really is doing a MCTS. I will consider more complex games as extension problems.} agent which will use the search. I will also use slight variants of tic-tac-toe (e.g. blind tic-tac-toe\footnote{A game of my invention. Neither player knows the others moves. If a player plays in an already occupied square, the move is rejected and the player must try again.}) to ensure that the library is versatile enough to support different kinds of games.
+
+
+\section*{Libraries Used}
+I intend to build the library from scratch using only general purpose Haskell libraries such as \verb+System.Random+ (generating random numbers) and \verb+Data.List+ (list manipulation tools).
+
+I considered using \verb+Data.Tree.Game_tree+\footnote{http://hackage.haskell.org/package/game-tree} as a data structure to use for algorithm but it seems to be too $\alpha\beta$ search oriented. Also, since it isn't part of an official Haskell library I don't know how trustworthy it is.
+
+
+\section*{Success Criteria}
+
+These criteria are based on what sort of games MCTS has been applied to in recent research. I will test each of the following criteria by implementing an agent for a suitable variant of tic-tac-toe and testing it against a random agent (and perfect play agent when that makes sense in the context) with the intention of analysing the trace of the algorithm and checking that it behaves correctly.
+
+Must be possible to use the library to write agents for the following categories of games:
+\begin{enumerate}
+\item Two player, perfect information games.\par
+MCTS is used in \cite{go} to play Go.
+
+\item Games with imperfect information.\par
+MCTS has been used in an agent for Kriegspiel (\cite{war}), where each player does not explicitly know anything about the opponents piece layout and the layout must be inferred.
+
+\item Games with more than two players.\par
+In \cite{pacman} (an agent for Ms. Pacman using MCTS) the ghosts are represented as other players meaning this is represented as a six player game.
+
+\item Games with simultaneous play.\par
+A general game player (\cite{general}) uses MCTS to implement agents for simultaneous games. Ms. Pacman, from above, is also an example of where a simultaneous play game.
+
+\end{enumerate}
+
+Researchers have also made modifications to the search that I would like to remain possible. I am thinking from the point of view of `I want to make change $x$ to the standard MCTS algorithm. Will I be able to do this if I use your library?'. 
+
+
+\begin{enumerate}
+\item Must allow user to write their own selection function.\par
+\cite{mctssolver} for example, introduces a particular selection function which proves effective for playing the game Lines of Action.\par
+
+
+\item Must support terminating simulations.\par
+This involves stopping the simulation phase of the algorithm before it has completed and using an evaluation function to evaluate the game state.\par 
+Several (\cite{LOA,pacman}) have found this useful for various reasons. For example, sometimes it is obvious which player has won the game by evaluation function and further simulation would be a waste of time.
+\end{enumerate}
+
+
+
+\section*{Extensions}
+
+Implement an AI for $k$ in a row, $n\times n$ tic-tac-toe.
+Play against connectk\footnote{http://risujin.org/connectk/} for various $k$ and $n$ to test how well a naive  agent scales.
+Connectk seems to be a GUI only agent, but it does support adding custom agents written in C so I would write a dummy C agent which would sit in my test harness whilst also being plugged in to the connectk gui.
+
+I am considering writing a chess agent. However, I would expect very poor performance, even against a random agent, as nobody so far seems to have had very much luck using Monte Carlo methods to play chess. If I were to implement an agent I would test it against against the GNU Chess engine on various difficulty settings and a random agent.
+
+Implement checkers and play it against a random agent, checkersland\footnote{http://www.checkersland.com/download/pc.jsp} and the online version of the 1994 world champion chinook\footnote{http://webdocs.cs.ualberta.ca/\textasciitilde{}chinook/play/player}. I would expect checkers to perform better than chess would. It may seem pointless to write a checkers AI when the game has been solved (\cite{checkerssolved}) but I think it would be interesting to try and gather some intuition as to why different games are suited to the search and others aren't.
+
+Finally, I would attempt to modify the agents produced so far in an attempt to get them to perform better.
+
+\section*{Timetable and Milestones}
+In some of the work packages I intend to write up the work package to a fairly complete standard in parallel with whatever the current work package is. This is so that I can fill in details while it is still fairly fresh in my mind. Of course I will still keep notes of what I did as I do it a notebook, but I would like to fill that out in dissertation style sooner rather than later.
+\subsection*{21st October - 4th November}
+{\bf Intensity:} Medium - Initial research phase.\par
+
+As the worked examples I have done in Haskell have been very basic toy examples, I've not needed some of the more advanced features of the language. As the project becomes more complex it may be beneficial to grasp these. I know that IO and random number generation requires use of Monads and I'd rather understand them properly rather than copy code fragments from textbooks or the internet.
+
+It may be useful in this time to examine the code structure of large projects which have been implemented in haskell, such as darcs and xmonad, which may give me pointers on how to structure a large haskell project. I also would like to look into test utilities such as HUnit to see what would be most suitable for my needs.
+\par
+{\bf Milestones:} \begin{enumerate}
+\item Decide on a source version tool.
+\item {Know advanced features of the language Haskell (and have freshened up my Haskell knowledge by doing some exercises over these two weeks).}
+\item Have good idea of how to structure a large project.
+\end{enumerate}
+
+
+\subsection*{4th November - 25th November}
+{\bf Intensity:} Heavy - Main MCTS implementation coding phase\par
+Implement MCTS library as described along with a tic-tac-toe agent. Write up preparation section of dissertation.\par
+
+{\bf Milestones:} \begin{enumerate}
+\item Satisfy the first success criterion of the project.
+\item Have a fairly complete preparation section.
+\end{enumerate}
+
+\subsection*{25th November - 2nd December}
+{\bf Intensity:} Light - Preparing to leave Cambridge \& finishing off supervisions.\par
+Begin writing up the implementation section of the dissertation. Use the library itself \& Graphviz to produce vector graphics renditions of the MCTS in action. Outline clever bits of code that I'm proud of and explain the outward facing interface to the library.\par
+{\bf Milestones:} \begin{enumerate}
+\item Get Graphviz producing graphs of executions of the search.
+\item Have sections of the Implementation section written.
+\end{enumerate}
+\subsection*{2nd December - 9th December}
+{\bf Intensity:} No Work - On Varsity Ski Trip\par
+{\bf Milestones:} None
+
+\subsection*{9th December - 16th December}
+{\bf Intensity:} Light - CULRC\footnote{Cambridge University Lightweight Rowing Club} Henley Trial 8's camp\par
+Make modifications to the library so that it satisfies all other success criteria. And modify tic-tac-toe agent to test the different game types.\par
+{\bf Milestones:} Satisfy all success criteria.
+
+
+\subsection*{16th December - 6th January}
+{\bf Intensity:} Heavy - Christmas holidays - aim to spend most of it in Cambridge. Lightening off for Christmas Day and Boxing Day.\par
+
+
+Implement test harness, $n\times n$ tic-tac-toe agent and dummy AI agent in connectk.\par
+{\bf Milestones:} Have games playing against connectk for various board sizes and have the test harness log results of these games
+
+
+
+\subsection*{6th January - 13th January}
+{\bf Intensity:} No Work - CULRC training in Soustons, France\par
+{\bf Milestones:} None
+
+\subsection*{13th January - 3rd February}
+{\bf Intensity:} Medium - Getting back into Lectures and supervision work.\par
+Implement the game checkers and (possibly) chess and get them working in the test harness against checkersland, chinook and GNU Chess. Evaluate the results from the $n\times n$ tic-tac-toe agent.
+ Work on progress report for the hand in date of 3rd of February.
+ 
+{\bf Milestones:} \begin{enumerate}
+\item Be in a position to evaluate how well the naive MCTS plays chess and checkers.
+\item Hand in progress report and aim to show results from agents at the peer presentation.
+\end{enumerate}
+
+
+\subsection*{3rd February - 24th February}
+{\bf Intensity:} Hard.\par
+Evaluate the performance of MCTS on chess and checkers and then
+improve on the naive MCTS playing of chess and checkers and aim to see how much it is possible to improve this.\par
+{\bf Milestones:} Have the chess + checkers AI perform better than a random agent after improvements.
+
+
+
+
+\subsection*{24th February - 16th March}
+{\bf Intensity:} Medium\par
+Gather lots of statistics on games produced so far. This will consume a large amount of time since many games need to be played out and the agents will be allowed several seconds to pick a move.
+Evaluate what improvements I made with the chess and checkers agents.\par
+Write up the implementation of the extensions made.\par
+{\bf Milestones:} Have a near complete evaluation section.
+
+
+
+
+\subsection*{16th March - 23rd March}
+{\bf Intensity:} No Work - Varsity Lightweight Boat Race\par
+{\bf Milestones:} None
+
+\subsection*{23rd March - 13th April}
+{\bf Intensity:} Medium - Need to be doing an awful lot of revision over the Easter break in addition to work.\par
+If the project has so far gone to plan then I will implement an imperfect information game (Kriegspiel) with the intention of replicating the results in \cite{war}. However, if there have been problems with the project so far then I will use this time as a buffer to solve those problems. \par
+{\bf Milestones:} Fix problems with project / Implement Kriegspiel agent.
+
+
+
+\subsection*{13th April - 27th April}
+{\bf Intensity:} Hard - Lead up to imaginary deadline before getting into solid revision\par
+Dissertation and code polishing time. Write things like the introduction section now that I know a lot more about the subject. Also, write up the conclusions I have made given the work I have done on the project.
+
+{\bf Milestones:} Complete (almost) final draft of dissertation, distribute around friends and academics, ensure everything is checked.
+
+\subsection*{27th April - 18th May}
+{\bf Intensity:} Extra Light - Spend most of time revising \& attending lectures.\par
+I will spend this time incorporating feedback from others and improving parts of the dissertation which seem insufficient.\par
+{\bf Milestones:} Hand in Dissertation
+
+\bibliographystyle{plain}
+\bibliography{main}
+
+
+\end{document}
