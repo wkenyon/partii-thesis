@@ -1,0 +1,53 @@
+\begin{picture}(0,0)%
+\includegraphics{annoying.pstex}%
+\end{picture}%
+\setlength{\unitlength}{4144sp}%
+%
+\begingroup\makeatletter\ifx\SetFigFont\undefined%
+\gdef\SetFigFont#1#2#3#4#5{%
+  \reset@font\fontsize{#1}{#2pt}%
+  \fontfamily{#3}\fontseries{#4}\fontshape{#5}%
+  \selectfont}%
+\fi\endgroup%
+\begin{picture}(16868,7290)(-3832,-1876)
+\put(-3509,-61){\makebox(0,0)[lb]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}Recursivley}%
+}}}}
+\put(-3509,-421){\makebox(0,0)[lb]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}select nodes}%
+}}}}
+\put(-3509,-781){\makebox(0,0)[lb]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}until a leaf node}%
+}}}}
+\put(-3509,-1141){\makebox(0,0)[lb]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}is reached}%
+}}}}
+\put(136,-31){\makebox(0,0)[lb]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}Add one or more }%
+}}}}
+\put(136,-391){\makebox(0,0)[lb]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}nodes to the tree}%
+}}}}
+\put(3736,-61){\makebox(0,0)[lb]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}Perform one}%
+}}}}
+\put(3736,-376){\makebox(0,0)[lb]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}or more}%
+}}}}
+\put(3736,-736){\makebox(0,0)[lb]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}simulations}%
+}}}}
+\put(3736,-1861){\makebox(0,0)[lb]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}termination}%
+}}}}
+\put(3736,-1096){\makebox(0,0)[lb]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}from added}%
+}}}}
+\put(3736,-1456){\makebox(0,0)[lb]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}nodes to}%
+}}}}
+\put(8191,-106){\makebox(0,0)[lb]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}Back propagate}%
+}}}}
+\put(8191,-466){\makebox(0,0)[lb]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}the result of the simulation}%
+}}}}
+\put(8191,-826){\makebox(0,0)[lb]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}up the tree}%
+}}}}
+\put(9451,4439){\makebox(0,0)[b]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}Backpropagation}%
+}}}}
+\put(5626,4439){\makebox(0,0)[b]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}Simulation}%
+}}}}
+\put(1801,4439){\makebox(0,0)[b]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}Expansion}%
+}}}}
+\put(-2024,4439){\makebox(0,0)[b]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}Selection}%
+}}}}
+\put(3826,5114){\makebox(0,0)[b]{\smash{{\SetFigFont{25}{30.0}{\familydefault}{\mddefault}{\updefault}{\color[rgb]{0,0,0}Iterate}%
+}}}}
+\end{picture}%

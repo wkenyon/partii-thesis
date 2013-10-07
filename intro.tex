@@ -1,0 +1,82 @@
+\chapter{Introduction}
+This chapter introduces the two major topics that this project is based on. Section \ref{sec:intromcts} explains the \textit{Monte Carlo Tree Search} (\textit{MCTS}) method and discusses the improvements it makes upon more traditional game playing techniques. Section \ref{sec:introconnect} introduces the \textit{Connect} family of games and examines why it would be an interesting endeavour to write a \textit{game playing agent} for this family.
+
+\section{Monte Carlo Tree Search \label{sec:intromcts}}
+MCTS is a state-of-the-art method for making optimum decisions in artificial intelligence. MCTS is the basis for the best computer players for \textit{Go}, a highly-strategic \textit{combinatorial game} with a large search space  \cite{firstmcts,go}. The significance of MCTS is highlighted by the fact that {Go} is considered to have replaced chess as the `\textit{drosophila of AI}' \cite{go}.
+%\footnote{\textit{Combinatorial games} are two player, zero-sum, perfect information, deterministic, discrete and sequential games}
+%\textit{MCTS} is considered to be `a new paradigm for search' %\cite{go}.  
+
+{MCTS} is an evolution of \textit{Monte Carlo simulation} and \textit{minimax} search. {Monte Carlo}  methods have their roots in statistical physics where they have been used to obtain approximations to intractable integrals and have since been used in a wide array of domains including games research \cite{survey}. {Monte Carlo simulation} follows a simple non-deterministic policy to play out a large number of games from a given start position. Often this policy is to randomly pick from all of the legal moves with uniform probability. Each simulation continues until the game reaches a terminal position. The average utility of all the terminal states reached can be used as an estimate for the utility of the start position. {Monte Carlo simulation} is usually used for games with an element of chance \cite{blackjack,backgammon}.  
+
+{Minimax} decides a move which minimizes loss in the worst case scenario. In order to do this perfectly, a full  depth game tree must be built. Building an unlimited depth game tree is, in general, computationally unfeasible. An evaluation function is often used to estimate the utility of the leaves of a depth limited game tree. {Minimax} was the basis of the tree search algorithm in \textit{Deep Blue}, a chess-playing computer which defeated world champion Garry Kasparov in 1997.
+
+
+
+%evaluates the nodes of a search tree \cite{firstmcts} in order to choose the best possible move from a particular players point of view. 
+%Many thousands of possible moves are simulated through self-play.
+Both {Monte Carlo simulation} and {minimax} based agents have flaws which {MCTS} improves upon.
+Agents using {Monte Carlo simulation} model opponents as players following a random strategy. This is not representative of rational opponent strategy. Therefore, many simulations are required in order to converge upon a good estimate of utility. 
+Minimax agents, on the other hand, assume that an opponent will always make the best move she can. However, the use of minimax is dependent upon the existence of a good evaluation function. Finding an evaluation function can prove difficult for games such as \textit{Go} \cite{go} and \textit{Kriegspiel} \cite{kriegspiel}. In addition, minimax agents are not able to consider as many moves ahead as Monte Carlo simulation agents, and are thus considered less strategic.
+
+
+%Being an effective `soft pruning' technique , MCTS is able to focus upon regions in the search space that have the most potential for long-term success/ are of the highest value while not prematurely eliminating other regions that may not display as much potential during initial analysis REFgelly2011. 
+
+An attempt at solving the deficiencies of both methods was to combine a depth-limited {minimax} search with averaged Monte Carlo simulations as a utility function. MCTS improves on this approach by not separating between a {minimax} phase and a {Monte Carlo} phase. The search progressively changes from averaging to {minimax} as the number of simulations grows. This provides a fine-grained control of tree growth at the level of individual simulations \cite{firstmcts}. 
+
+Figure \ref{fig:annoying} illustrates the four stages of {MCTS}: \textit{Selection}; \textit{Expansion}; \textit{Simulation} and \textit{Backpropagation}. It also highlights the iterative nature of the search. In current literature, the specification for the {Expansion}, {Simulation} and {Backpropagation} phases of the search vary considerably across different applications. The library produced in this project allows full configuration of each of these phases while providing sensible defaults. 
+
+%the same. A greedy \textit{minimax} \textit{selection} strategy is never used, as it would cause \textit{MCTS} to repeatedly investigate one promising path while leaving the rest of the tree unexplored. Instead, selection is implemented using
+
+\subsubsection{Upper Confidence Bounds}
+The {Selection} phase of {MCTS} is almost always based on \textit{Upper Confidence Bounds} (\textit{UCB}) \cite{survey}. The {UCB} strategy chooses the child node, $i$, that maximises the {UCB} score, $Q_{i}$:
+\begin{equation}
+\label{eq:ucb}
+Q_{i} = v_{i}+c\times\sqrt{\frac{\ln{N}}{n_{i}}}
+\nonumber
+\end{equation}
+where $v_{i}$ is the {minimax} score of node $i$, $n_{i}$ is the number of times this node has been explored on previous iterations, $N$ is the number of times the current node has been explored and $c$ is an `exploration' constant. The {UCB} strategy represents a compromise between favouring unexplored nodes and nodes that have shown promise so far. It is this guided, but exploratory nature of {UCB} which makes {MCTS} such a powerful method.
+
+\subsubsection{Multi Player Monte Carlo Tree Search}
+{Minimax} can only be used for zero-sum, two-player games. A single value can 
+represent the utility of a position for two players. {Minimax} can be generalized to 
+the \textit{Max-n} strategy for non zero-sum games or games with multiple players. For this 
+strategy, the utility, or estimated utility, of a position for player $i$ is stored in the $i$th element 
+of a \textit{score tuple}. By using a similar {score tuple} in the game tree, {MCTS} can be genralized to \textit{Multi Player MCTS} \cite{cazenave08}.
+
+\begin{figure}[]
+\centering
+\scalebox{0.4}{\input{"figs/annoying.pstex_t"}}
+\caption{\label{fig:annoying}Demonstration of the phases of {MCTS}. (Figure adapted from \cite{bouzy2007})}
+\end{figure}
+
+\section{Connect\label{sec:introconnect}}
+\textit{Connect} is a class of two player zero-sum games. It includes \textit{Tic-Tac-Toe}, \textit{Freestyle GoMoku} and \textit{Connect6} \cite{connect6}. The rules of {Connect} ($n$,$m$,$k$,$p$,$q$) are simple. The board is an $n\times m$ {Go} grid. Two players, {Black} and {White}, take turns to place stones of their color on the grid. The first player to get $k$ consecutive stones on any diagonal, horizontal or vertical line is the winner. On her first turn, {Black} places $q$ stones. On all subsequent turns for either player, $p$ stones are placed. The following equivalences hold:
+\begin{itemize}
+\item[]{TicTacToe} $=$ {Connect} (3,3,3,1,1) \item[]{Freestyle GoMoku} $=$ {Connect} (15,15,5,1,1)\footnote{{Freestyle GoMoku} is sometimes played on boards of other sizes}
+\item[]{Connect6} $=$ {Connect} (19,19,6,2,1)
+\end{itemize}
+{Connect} ($n$,$m$,$k$,1,1) games are considered unfair. This is because black always has one more stone on the board than white at the end of her turn. White, on the other hand, has the same number of stones as black at the end of his turn. Intuitively, one additional piece on the board for a given player cannot be a disadvantage to that player. In fact, detailed analysis shows that there exists a winning strategy for black in {Connect} ($15$,$15$,$5$,$1$,$1$) \cite{gomoku,solvedgames}. 
+
+{Connect} ($n$,$m$,$k$,2,1) games were invented with the intention of restoring fairness. They seem intuitively fair because at the end of a player's turn, that player would have one more stone on the board than their opponent. However, there is no conclusive evidence that this indeed constitutes a fair game.
+
+Herik \cite{solvedgames} defines the \textit{state-space complexity} as the number of legal game positions reachable
+from the initial position of the game. The {state-space complexity} and \textit{branching factor} of {Connect} (19,19,$k$,1,1) is similar to that of {Go}. However {Connect} (19,19,$k$,2,1) has {branching factor} of $\binom{19 \times 19 -1}{2} = 64620$ at the start of the game, about 180 times larger than the branching factor in {Go}.
+
+Part of the reason {MCTS} performs so well in {Go} is that playing moves which seem strategically neutral at the time of play can be of critical importance 50 or 100 moves later \cite{go}. The exploratory nature of {UCB} combined with with deep simulations allows {MCTS} to consider such moves. The strategy adopted by most computer and human players of {Connect} is to play tactically and maximise the short term advantage \cite{connectk,connect6}. It is hoped that a {MCTS} agent that considers a larger range of moves might uncover a hidden strategic element to {Connect}.
+
+
+
+%An upper bound for the \textit{state-space complexity} of %\textit{Connect} ($n$,$m$,$k$,1,1) is $(n \times m)!$. This %bound is tight for large $k$. This is because multiple lines %of at least $k$ in a row aren't legal. And as $k$ increases, %fewer positions are considered illegal. 
+
+%\section{Motivations}
+%There were several motivations for this project. The first was to write a library which allows developers to write agents for their own games using \textit{MCTS}. This allows developers to avoid dealing with the implementation details of \textit{MCTS} and apply it to their own problem. The second was to determine if the success achieved by \textit{MCTS} in \textit{Go} could be translated into the \textit{Connect} family of games. Yen and Yang had already investigated using \textit{MCTS} to play \textit{Connect6}\cite{connect6}.
+
+
+%, a highly strategic, two-player zero-sum game with a very large search space,
+
+%Over the course of this project, a versatile \textit{MCTS} library has been constructed. This library was also used to make an agent which plays all games in the \textit{Connect} class. 
+
+%In this project, a Monte Carlo Tree Search library has been constructed/put together in Haskell. Chapter 3 contains a description of the implementation of this library. Chapter xx is a demonstration/description of how the library can be utilised in play-making for various games. The incorporation of this library in making/developing an effective/good agent for Connect-k will be described in chapter xxx. 
+
+
+

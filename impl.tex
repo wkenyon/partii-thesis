@@ -1,0 +1,587 @@
+\chapter{Implementation}
+This chapter details the implementation of the {MCTS} library and the {Connect} agent created.
+In order to build the library in a test-driven fashion, the various elements had to constructed in a certain order. First, a concrete instance of the \texttt{Game} type class was written. \textit{Tic-Tac-Toe} (or {Connect} (3,3,3,1,1)) was chosen for its simplicity. Secondly, default implementations for the {Expansion}, {Selection}, {Simulation} and {Backpropagation} phases of the search were implemented. Next, the library was completed by writing the library core. Finally, the {Connect} agent was written using the completed library.
+\section{Building the Library}
+\subsection{{Tic-Tac-Toe}\label{sec:ttt}\label{sec:arbitrary}}
+{Tic-Tac-Toe} is isomorphic with the following game:
+\begin{enumerate}
+\item Two players take turns to choose tiles numbered 1 to 9.
+\item Once a tile is picked up, the player must keep it; it cannot be picked again.
+\item If a player, after his go, can add the numbers on 3 of his tiles to make 15, then he has won the game.
+\end{enumerate}
+
+This isomorphism is related to the fact that all rows, columns and diagonals of a $3 \times 3$ magic square add up to 15 (and no other groups of 3 add to 15).  Player X obtaining a line in the top row would be equivalent to choosing the tiles numbered 2, 7 and 6 (Figure \ref{fig:tttms}). 2, 7 and 6 sum up to 15. This tiled number game is easier to implement in code than {TicTacToe}. 
+
+\begin{figure}
+\centering
+%\input{figs/tttms.pstex_t}
+\caption{A comparison between the {Tic-Tac-Toe} board and the $3 \times 3$ magic square.}
+\label{fig:tttms}
+\end{figure}
+
+To implement this game such that it can be used in the library, a \texttt{TicTacToe} data type must be defined to encapsulate the current position. \texttt{TicTacToe} must be an instance of the \texttt{Arbitrary} type class so that functions which take it can be automatically tested by {QuickCheck}. \texttt{TicTacToe} must also be an instance of the \texttt{Game} type class so that it can be used by the {MCTS} library. To do this, the functions in fragment \ref{frag:ttt} must be implemented.
+\begin{fragment}
+\begin{lstlisting}
+module MCTS.Sample.TicTacToe where
+data TicTacToe
+instance Arbitrary TicTacToe 
+  where
+    arbitrary :: Gen TicTacToe
+   
+instance Game TicTacToe
+  where
+    legalChildren :: TicTacToe -> [TicTacToe]
+    currentPlayer :: TicTacToe -> Player TicTacToe
+    currentState  :: TicTacToe -> GameState TicTacToe
+\end{lstlisting}
+\caption{\label{frag:ttt}The minimal set of functions needed to implement {TicTacToe}}
+\end{fragment}
+
+The rest of this section details the implementation of these data types and functions. \texttt{legalChildren}, \texttt{currentPlayer} and \texttt{currentState} were implemented using test-driven development; the design of the QuickCheck properties which should hold of them are discussed.
+
+In the rest of this chapter, the following notation is used to make explanations clearer: if \texttt{a} is an expression in Haskell, then \sem{a} is the representation of that expression in the real world.
+\subsubsection{The \texttt{TicTacToe} data type}
+The \texttt{TicTacToe} data type represents the current position of the game. It encapsulates three \texttt{Set}s, \texttt{sX}, \texttt{sO} and \texttt{sC}. For an arbitrary $\texttt{g}\in\texttt{TicTacToe}$, \sem{sX g} represents the tiles X has chosen, \sem{sO g} the tiles O has chosen and \sem{sC g} the tiles still to be chosen.
+
+\subsubsection{The \texttt{arbitrary} function}
+To produce an arbitrary position, \sem{sX}, \sem{sO} and \sem{sC} can be treated as initially empty buckets. Each of the tiles from 1 to 9 can then be thrown into a random bucket. This raises the need for a function which randomly distributes a list of numbers over 3 lists. Implementing the `randomly' part of this in Haskell is non-trivial (see Section \ref{sec:rand}). This random behaviour could be introduced by passing a random seed in to the \texttt{arbitrary} function. However, it is more convenient to wrap up the generation of arbitrary types in a {Generator monad}. \texttt{split3} (fragment \ref{frag:arbitraryTicTacToe}) wraps up the computation of non-deterministically putting each element of the input list into each of the output lists. The actual random choices are made later inside the {QuickCheck} library.
+
+\begin{fragment}
+\begin{lstlisting}
+instance Arbitrary TicTacToe where
+         arbitrary = do (a,b,c) <- split3 [1,2,3,4,5,6,7,8,9]
+                        return $ TicTacToe (Set.fromList a) 
+                                           (Set.fromList b) 
+                                           (Set.fromList c)
+split3 :: [a] -> Gen ([a],[a],[a])
+split3 [] = return ([],[],[])
+split3 (x:xs) = do (a,b,c) <- split3 xs
+                   oneof [return (x:a,b,c), 
+                          return (a,x:b,c), 
+                          return (a,b,x:c)]
+\end{lstlisting}
+\caption{Definition of the \texttt{arbitrary} function for \texttt{TicTacToe}}
+\label{frag:arbitraryTicTacToe}
+\end{fragment}
+
+
+The alert reader will note that the \texttt{arbitrary} function does not always produce legal \texttt{TicTacToe} positions. This is desirable; it may be advantageous for property functions to check how a function behaves when given an illegal position. If illegal positions are disallowed, they can be filtered out.
+
+
+\subsubsection{The \texttt{currentPlayer} function}
+For any legal Tic-Tac-Toe position, it is always possible to tell which player's turn it is. There are two possible scenarios:
+\begin{enumerate}
+\item There are the same number of X's and O's on the board. 
+\item There are $n+1$ X's and $n$ O's on the board, where $n\in\mathbb{N}$.
+\end{enumerate}
+In the case of item 1, it would be X's turn. In the case of item, 2 it would be O's turn. 
+
+Similarly, in the isomorphic version of Tic-Tac-Toe, if X and O had the same number of tiles, it would be X's turn. If X had one more tile than O, it would be O's turn. The following property must therefore hold of the \texttt{currentPlayer} function:
+
+
+\begin{equation}
+\begin{split}
+&\forall\texttt{g}\in\texttt{TicTacToe}.\texttt{legal g}\implies\\
+&\texttt{currentPlayer g} =
+\begin{cases}
+\texttt{X} & \text{if (\texttt{size \$ sX g}) $=$ (\texttt{size \$ sO g}})\\
+\texttt{\texttt{O}} & \text{if (\texttt{size \$ sX g}) $=$ (\texttt{size \$ sO g})$+1$}\\
+\end{cases}
+\end{split}
+\nonumber
+\end{equation}
+where \verb|legal::TicTacToe->Bool| decides whether a \verb|TicTacToe| position is legal, or not, and \verb|size::Set a->Int| gives the size of a set. This property is encoded in the \texttt{prop{\_}currentPlayer} function. The definition of \verb|currentPlayer|:
+\begin{equation}
+\texttt{currentPlayer g} =_{\text{def}}
+\begin{cases}
+\texttt{X} & \text{if (\texttt{size \$ sX g}) $=$ (\texttt{size \$ sO g}})\\
+\texttt{\texttt{O}} & \text{if (\texttt{size \$ sX g}) $=$ (\texttt{size \$ sO g})$+1$}
+\end{cases}
+\nonumber
+\end{equation}
+is very similar to this property.
+
+The above equations are not entirely mathematically correct. An implicit conversion needs to be made from Haskell data types to mathematical sets. For example, Haskell expressions of type \verb|Bool| and \verb|Int| should be thought of as members of the $\mathbb{B}$ and $\mathbb{Z}$ sets.
+
+\subsubsection{The \texttt{legalChildren} function}
+For arbitrary $\texttt{g}\in\texttt{TicTacToe}$ 
+where \texttt{g} is a legal position, there are \sem{size \$ sC g} different possible moves in \sem{g}. Each move represents moving a tile from \sem{sC g} to \sem{sX g} if it is X's turn, or \sem{sO g} if it is O's turn. 
+
+
+A \verb|prop_legalChildren| function checks that for all $\texttt{g}\in\texttt{TicTacToe}$, if \sem{g} is a legal position, \sem{legalChildren g} are all legal positions. It also checks that the list \texttt{legalChildren g} has length \texttt{size \$ sC g}.
+
+The \verb|legalChildren g| function maps a \textit{lambda}  function (also known as an \textit{anonymous} function) onto the \texttt{sC g} set. This lambda function produces a position identical to \sem{g} but with a tile moved from \sem{sC g} into \sem{sX g} or \sem{sO g} depending on the value of \sem{currentPlayer g}.
+
+
+\subsubsection{The \texttt{currentState} function}
+This function is specified by the following:
+\begin{equation}
+\begin{split}
+&\forall\texttt{g}\in\texttt{TicTacToe}.\texttt{legal g}\implies\\
+&\texttt{currentState g} =
+\begin{cases}
+\texttt{Win X} & \text{if any 3 tiles from \sem{sX g} sum to 15}\\
+\texttt{Win O} & \text{if any 3 tiles from \sem{sO g} sum to 15}\\
+\texttt{Stale} & \text{if \sem{sC g} contains no tiles}\\
+\texttt{InProgress} & \text{otherwise}\\
+\end{cases}
+\end{split}
+\nonumber
+\end{equation}
+Having the `if any 3 tiles\ldots' case raises the need for a \texttt{choose} function. This must be able to find all of the different 3 elements can be chosen from a list. This function is specified in Section \ref{sec:choose}.
+
+
+\subsection{Implementing Default {MCTS} Phases}
+This section outlines the implementation of \texttt{doSimulation}, \texttt{doBackpropagation}, \texttt{doSelection} and \texttt{expandConst} (fragment \ref{frag:reminder}).
+Several helper functions were also written. It is probable that users wishing to define their own configuration functions might find these functions useful. These functions were added to the export list of the \texttt{MCTS.Config} module (fragment \ref{frag:config_mod}). 
+
+\begin{fragment}
+\begin{lstlisting}
+module MCTS.Game where
+class Game a 
+  where
+    -- ...
+    doSimulation :: a -> StdGen -> (GameState a, StdGen)
+\end{lstlisting}
+\begin{lstlisting}
+module MCTS.Config where
+
+type ScoreTuple a = [(a,Score)]
+type Score = Double
+type Plays = Int
+
+defaultConfig :: MctsConfig
+
+doUcb :: Game a => Double -> [(ScoreTuple a, Plays)]
+                          -> Player a 
+                          -> Int
+                          
+data MctsConfig = MctsConfig {  
+  expandConst :: Int
+  doSelection :: Game a => [(ScoreTuple a,Plays)] 
+                        -> Player a -> Int
+  
+  doBackpropagation :: Game a => GameState a
+                              -> (ScoreTuple a, Plays)
+                              -> (ScoreTuple a, Plays)
+}
+
+
+\end{lstlisting}
+\caption{\label{frag:reminder} Reminder of parts of the \texttt{MCTS.Game} and \texttt{MCTS.Config} modules}
+\end{fragment}
+
+\subsubsection{Simulation}
+The default implementation of \verb|doSimulation| is to recursively pick a random, legal child of the position being simulated. When a terminal position is reached the \texttt{currentState} of this position is returned. As part of the implementation, \texttt{pick} (see fragment \ref{frag:config_mod}) was written. \texttt{pick} generates a random number $i$, where $0<i<n-1$ and $n$ is the length of the input list. It returns the $i^{\text{th}}$ element of the input list. \texttt{pick} is exported by the \texttt{Game} module, it could be useful to a user implementing their own \texttt{doSimulation} function.
+
+\begin{fragment}
+\begin{lstlisting}     
+module MCTS.Config where                    
+
+-- ... functions defined earlier ... --
+
+pick :: [a] -> StdGen -> (a, StdGen)
+
+readTuple :: Eq a => a -> ScoreTuple a -> Score
+
+update :: 
+(a -> Bool) -> --boolean property of a
+(Score -> Score) -> --mapped onto scores of players satisfying property
+(Score -> Score) -> -- ``    ``      ``    ``   not satisfying property
+ScoreTuple a -> --the input score tuple
+ScoreTuple a --the output score tuple
+
+
+
+\end{lstlisting}
+\caption{\label{frag:config_mod}Functions added to the export list of the \texttt{MCTS.Config} module.}
+\end{fragment}
+
+\subsubsection{Selection}
+Recall the {UCB} equation:
+\begin{equation}
+Q_{i} = v_{i}+c\times\sqrt{\frac{\ln{N}}{n_{i}}}
+\nonumber
+\end{equation}
+where $v_{i}$ is the {minimax} score of node $i$, $n_{i}$ is the number of times this node has been explored on previous iterations, $N$ is the number of times the current node has been explored and $c$ is an `exploration' constant.
+
+The default implementation of \texttt{doSelection} is to choose the node $i$ which maximises the {UCB} score $Q_{i}$ when $c=1$. \verb|doSelection| is defined in terms of a more general function \verb|doUcb|, \verb|doSelection = doUcb 1|. \verb|doUcb| is exposed to the user through the \verb|Config| module since modifying the exploration constant is likely to be a common use case.
+
+Since \verb|doUcb| is given no information about the current node, the value of $N$ is unobtainable directly. Instead, the $N=\sum_{i}v_{i}$ equivalence is exploited. This could be avoided by passing in the details of the parent node to the function, however, this would make the public interface more complex. Computing $N=\sum_{i}v_{i}$ in this manner does have a small overhead. However, all values of $v_{i}$ are already considered to select the most desirable node. Therefore complexity is increased only by a small constant factor.
+
+\subsubsection{Backpropagation}
+The default implementation of \texttt{doBackpropagation} performs simple case analysis on the \texttt{GameState} passed in as the first argument:
+\begin{list}{}{}
+\item \verb|InProgress| - result in the identity function. In other words, leave the score tuple and play count alone.\par One might question why it is necessary to {backpropagate} an \verb|InProgress| result. {Backpropagation} should only occur once a Simulation has reached a terminal state. Although the default implementation of \verb|doSimulation| will never return \verb|InProgress|, a user's implementation is free to do so. Therefore, this case must be handled.
+\item \verb|Stale| - result in the function which increments the play count by 1 and leaves the score tuple alone.
+\item \verb|Win x| - result in the function which increments the play count by 1, increases the score of player \verb|x| by 1 in the score tuple, and decreases the score of all other players by 1. 
+\end{list}
+An \verb|update| helper function was written (see fragment \ref{frag:config_mod}) to assist with the \verb|Win x| case. This function is a conditional map. It maps a certain function (e.g. $+1$) on to the scores of players that satisfy a certain property (e.g they were on the winning team) and a different function (e.g. $-1$) onto the scores of all other players. The \verb|prop_update| specifies that for an arbitrary \texttt{ScoreTuple (Player TicTacToe)} applying arbitrary $+$/$-$ \texttt{Int->Int} functions produces the expected results.
+
+
+\subsubsection{Expansion}
+The default implementation of the Expansion phase should be to add a single node to the tree. Therefore, by default, \verb|expandConst = 1|.
+
+
+\subsection{Library Core}
+Fragment \ref{frag:core_mod} shows an updated version of the \texttt{Core} module. The additional functions are revealed to the user should they wish to perform advanced search techniques requiring direct access to the tree structure.
+\texttt{data MCT a} is the data type representing a \textit{Monte Carlo Tree}, the internal tree generated during {MCTS}. \texttt{selectBestMove} is the function used at the root node, after all iterations have been performed, to decide which move is most desirable. \texttt{expand} lazily builds a full game tree from a given start position. \texttt{mcts} performs one iteration of {MCTS} on a partial tree.
+\begin{fragment}
+\begin{lstlisting}
+module MCTS.Core where
+doIterativeMcts :: Game a => 
+                   a -> MctsConfig -> 
+                   Int -> StdGen -> 
+                   (a,StdGen)
+
+doTimedMcts :: Game a => a -> MctsConfig -> 
+                         StdGen -> Int -> 
+                         IO (a,StdGen)
+
+data MCT a = MCT {rGame::a
+                , rPlayed::Int
+                , rT::ScoreTuple
+                , rChildList::[MCT a]}
+                
+selectBestMove :: Game a => MCT a -> a
+
+expand :: Game a => a -> MCT a
+
+mcts :: Game a => MCT a -> 
+                  MctsConfig -> 
+                  StdGen -> 
+                  (MCT a, GameState a, StdGen)
+
+--all functions below this line are private
+
+instance Arbitrary (MCT TicTacToe)
+  where
+    arbitrary :: Gen TicTacToe
+    
+(~!!~) :: [a] -> Int-> (a,[a])
+\end{lstlisting}
+\caption{\label{frag:core_mod}The updated texttt{MCTS.Core} module.}
+\end{fragment}
+
+\subsubsection{The \texttt{doIterativeMcts} and \texttt{doTimedMcts} functions}
+These functions are very similar. They both:
+\begin{enumerate}
+\item[] Use \texttt{expand} on the game position they are given to build an empty game tree.
+\item[] Perform a number of {MCTS} iterations by repeatedly running \texttt{mcts}.
+\item[] Use \texttt{selectBestMove} on the \texttt{MCT} generated to decide the best move that the root node should pick.
+\end{enumerate}
+\texttt{doTimedMcts} was interesting because use of strict evaluation was needed. The initial implementation checked the system clock to get a timestamp, $t_0$. An internal function recursively checked the system clock to get a timestamp, $t$ and performed an iteration of MCTS. This recursion bottomed out when the agent had consumed all available thinking time: $t-t_0>=t_{\text{thinking}}$. However, due to lazy evaluation, this function spent all thinking-time getting deeper in the stack. Only once all thinking-time had been consumed would it start performing {MCTS} iterations. This resulted in the function having a much longer run-time than the thinking-time allocated. Making one of the function applications strict solved this problem and made the function behave properly. This behaviour could not be detected by QuickCheck since  QuickCheck properties can only be written for pure functions. \texttt{doTimedMcts} is not a pure function as it relies on obtaining a system timestamp.
+
+\subsubsection{The \texttt{MCT} data type}
+The definition of this follows from the fact that each node in the tree must store: the current game position; a count of how many times this node has been simulated; a score tuple representing the current estimate of utility at this node; a list of the child nodes to this node.
+
+\subsubsection{The \texttt{arbitrary} function}
+This function returns a {Generator} for an arbitrary \texttt{MCT TicTacToe}. An arbitrary \texttt{TicTacToe} start position is generated using the \texttt{arbitrary} function that was defined for \texttt{TicTacToe} in fragment \ref{frag:arbitraryTicTacToe}.  The \texttt{ScoreTuple} for each node contains \texttt{allPlayers} of \texttt{TicTacToe}, has zero sum, and is otherwise random. The tree itself is built recursively from the start position using the \texttt{legalChildren} for the game at each node. The maximum depth of the tree is related to the \texttt{size} parameter of {QuickCheck}. At each step of the recursion, the maximum depth of each child tree is a random value between 1 and the maximum depth of the current tree. This generates asymmetric trees which are likely to be generated by {MCTS}.
+
+\subsubsection{The \texttt{selectBestMove} function}
+\texttt{selectBestMove} differs from \verb|doUcb| in that \verb|doUcb| will weight unexplored nodes higher. This is done in the hope of visiting unexplored areas of the tree. \texttt{selectBestMove} should greedily select which child of the root node represents the most promising move. Counter intuitively, this should be the node with the largest play count, rather than the node with the largest average score for that player \cite{firstmcts}.
+
+\subsubsection{The \texttt{expand} function}
+As discussed earlier, \texttt{expand} simply needs to build the whole game tree. Lazy evaluation ensures that nodes are actually expanded only as they are needed.
+
+\subsubsection{The \texttt{mcts} function}
+\verb|prop_mcts| is the conjunction of several properties for trees \texttt{A} and \texttt{B}, where \texttt{B} results from running \texttt{mcts} on \texttt{A}:
+\begin{enumerate}
+\item \texttt{B} has exactly one more \texttt{node} where \sem{rPlayed node}$\not=0$ than \texttt{A}.
+\item The sum of all \texttt{GameTuple}s are conserved from \texttt{A} to \texttt{B}.
+\item In \texttt{A}, there is a path from the root node to a leaf, for which each node has a \texttt{rPlayed} value exactly 1 greater than the equivalent path in {B}.
+\item \texttt{A} and \texttt{B} are otherwise identical.
+\end{enumerate}
+Item 1 checks that the {Expansion} phase of {MCTS} behaves as expected. Items 2 and 3 check that results are {backpropagated} correctly. Item 4 is a general sanity check.
+
+\texttt{mcts}, given an \texttt{MCT} game tree, recursively selects one of its children based on the policy provided by \texttt{doSelection}. This recursion bottoms out when either:
+\begin{enumerate}
+\item A node which is in a terminal state is selected.
+\item A node which has never been selected before is selected.
+\end{enumerate}
+In the case of item 1, this result is {backpropagated} up the tree. This is performed by modifying the \texttt{rPlayed} and \texttt{rT} records for each node as the stack is unwound. The \texttt{doBackpropagation} function specifies the way that \texttt{rPlayed} and \texttt{rT} are updated. In the case of item 2, this new node is simulated using \texttt{doSimulation}. {Backpropagation} then occurs as specified in item 1.
+Since \verb|doSelection| simply returns the index of the child node which should be selected, a function was required to split the child list into the selected node and the rest of the list. For this purpose, the \verb|~!!~| function was defined. It is defined using the built-in {Haskell} functions \verb|!!| and \verb|delete|.
+
+
+
+%\subsection{Generating Arbitrary Test Cases}
+
+
+%\subsection{Problems}
+%\subsubsection{Debugging}
+%\emph{QuickCheck} is great for finding bugs in your code, but it isn't always easy to find out where the problem lies. You will be told by \emph{QuickCheck} what test case caused the failure and thanks to the use of \verb|printTestCase| in fragment \ref{frag:prop_choose} you can find out what \emph{QuickCheck} was checking when the test failed. However, sometimes, when dealing with large data structures, you just can't print out the whole test case. For example, when testing the main \verb|mcts| function I had tests which would fail only occasionally, and only with very `large' \footnote{QuickCheck increases the `size' of each argument as it does more tests, this is because it is trying to cause a failure with `smaller' values so that the failure will be easy to debug. Here the definition of `smaller' varies from type to type, a number would have a smaller value, a list would be shorter, a tree shallower.} test cases. It turned out in this case that the problem was caused whenever \emph{QuickCheck} generated a node in a \emph{Monte Carlo Tree} with any duplicate children\footnote{Which, thanks to the \emph{Birthday Paradox}, occured more frequently than I had expected}. This problem was easy to fix, but finding out that this was the problem required a significant amount of messing around with the \emph{GHCi} debugging tools, a \emph{GNU Debugger} style set of commands which don't work quite as \emph{GDB} due to the call by need environment.
+
+%\subsubsection{List size mismatch} difficult to specify that you want smaller numbers than list size, 
+%if you set properties it ends up discarding well over half of your test cases. wish it could be a bit cleverer and work that out.
+
+%\subsubsection{No way to configure individual test cases when using quickCheckAll}
+
+%\subsubsection{Can lead to false sense of security}
+%As an example from the... settify
+
+\section{Connect agent}
+This section describes the implementation of the {Connect} agent using the {MCTS} library. The intention is to implement the agent using as little domain knowledge as possible. Defaults are used for all stages of {MCTS}. For the subclass of {Connect}($n$,$m$,$k$,$p$,$q$) where $n=m=k$, an $n\times n$ magic square isomorphism can be used. However, in general, this technique cannot be applied. For the {Connect} agent, a different implementation is used.
+
+This section describes {Connect} in the way it was implemented, slightly different from the description in the introduction. For example, the players are X and O as opposed to Black and White, and the data structure representing a {Connect} game is called \texttt{Connectk}. The differences are purely cosmetic.
+
+\subsection{Naive Implementation}
+\subsubsection{Finding k-in-a-row}
+\begin{enumerate}
+\item For each cell containing X on the board:
+	\begin{enumerate}
+	\item Check the $k-1$ cells in the directions shown in Figure \ref{fig:connectn_directions}. 
+	\item If any of the directions have $n-1$ consecutive Xs then X has a $k$-in-a-row and has won the game.
+	\end{enumerate}
+\item Repeat step 1 replacing X for O.
+\end{enumerate}
+\begin{figure}[]
+\centering
+\scalebox{0.5}{\input{"figs/imperitive_connection.pstex_t"}}
+\caption{The directions which must be checked for all squares on the board to identify a connect-$k$.}
+\label{fig:connectn_directions}
+\end{figure}
+To implement this in an imperative language, a two-dimensional array could be used represent the board. A $k$-in-a-row could be detected by scanning $k-1$ steps in each direction by iterating over the indexes of the array. However, since lists are usually preferred in functional programming, a list based representation is used (Figure \ref{fig:list_of_lists}). This is a slight simplification, \texttt{\_} cannot be used here since Haskell reserves the \texttt{\_} keyword for a different purpose. There are two possibilities for representing an unoccupied square: add an \texttt{Empty} player to the \texttt{Player Connectk} type; or make the list of lists have type \texttt{[[Maybe (Player Connectk)]]}. The latter option is used in this project since the type signature makes it clear that each square on the board may have a player in it, or may be empty(see Fragment \ref{frag:maybe}).
+\begin{fragment}
+\begin{lstlisting}
+data Maybe a = Just a
+             | Nothing
+
+connectkBoard =
+[[Just X, Nothing,Nothing,Just O],
+ [Just X, Just X, Just O, Nothing],
+ [Nothing,Just O,Nothing,Nothing],
+ [Nothing,Nothing,Nothing,Nothing]]
+\end{lstlisting}
+\caption{\label{frag:maybe}List representation of board in Figure \ref{fig:list_of_lists} and definition of the \texttt{Maybe} data type (\texttt{Maybe} is a built in type \cite{docs}).}
+\end{fragment}
+%you don't need to check the other 4 directions because, if there is a connect-$n$ in any of those directions then it will be detected when the main iterative loop iterates to the most southwesterly one.
+
+
+Checking for a $k$-in-a-row is harder using this list representation than it would be using an array. It is relatively easy to check the east direction by \texttt{fold}ing each list checking for $k$ consecutive pieces for one player. It is less obvious how to check the other directions in figure \ref{fig:connectn_directions}. The problem can be solved by checking the easterly direction for $k$-in-a-row on 6 different transformations of an initial board, $A$ (figure \ref{fig:transforms}). $S$,$T$ and $R$ represent: 
+\begin{itemize}
+\item[] $S$ - Shift all of the rows left by their row index, where the first row has index 0.
+\item[] $T$ - Standard matrix transposition.
+\item[] $R$ - Reverse each of the rows.
+\end{itemize}
+Relating this to figure \protect\ref{fig:connectn_directions}: \protect\subref{fig:transforms:I} and \protect\subref{fig:transforms:IT} represent searching the east and north directions respectively; \protect\subref{fig:transforms:IDT} and \protect\subref{fig:transforms:ITDT} represent searching the north-west diagonals; \protect\subref{fig:transforms:IRDT} and \protect\subref{fig:transforms:ITRDT} represent searching the south-west diagonals. Note how the abc $3$-in-a-row comes up twice for O because both of the long diagonals are checked by two different transformations.
+
+\begin{figure}[]
+\centering
+\scalebox{0.5}{\input{"figs/pConnectnI_nonum.pstex_t"}}
+\caption{\texttt{[[X,\_,\_,O],[X,X,O,\_],[\_,O,\_,\_],[\_,\_,\_,\_]]} represented graphically}
+\label{fig:list_of_lists}
+\end{figure}
+
+\begin{figure}[]
+\centering
+\subfloat[][$A$]{
+\scalebox{0.4}{\input{"figs/pConnectnI_num.pstex_t"}}
+\label{fig:transforms:I}
+}
+\subfloat[][$A^{ST}$]{
+\scalebox{0.4}{\input{"figs/pConnectnIDT_num.pstex_t"}}
+\label{fig:transforms:IDT}
+}
+\subfloat[][$A^{RST}$]{
+\scalebox{0.4}{\input{"figs/pConnectnIRDT_num.pstex_t"}}
+\label{fig:transforms:IRDT}
+}
+\linebreak
+\subfloat[][$A^{T}$]{
+\scalebox{0.4}{\input{"figs/pConnectnIT_num.pstex_t"}}
+\label{fig:transforms:IT}
+}
+\subfloat[][$A^{TST}$]{
+\scalebox{0.4}{\input{"figs/pConnectnITDT_num.pstex_t"}}
+\label{fig:transforms:ITDT}
+}
+\subfloat[][$A^{TRTST}$]{
+\scalebox{0.4}{\input{"figs/pConnectnITRDT_num.pstex_t"}}
+\label{fig:transforms:ITRDT}
+}
+
+\caption{\label{fig:transforms}A depiction of the transformations required to find $k$-in-a-row in board $A$} 
+
+\end{figure}
+
+\subsubsection{Representing the current player}
+For {Tic-Tac-Toe}, the argument that it is O's turn if both players have the same number of pieces on the board was used to decide the current player. For Connect, this does not hold because boards with arbitrary values of $p$ and $q$ must be considered. In this implementation, the problem is solved by exploiting lazy evaluation. The move sequences for games are represented by infinite player-lists (Fragment \ref{frag:playerList}). The head of the player-list represents the current player (\texttt{currentPlayer g} \texttt{=} \texttt{head \$ playerList g}) and the tail of the player-list is the player-list for all of the legal children of the position.
+\begin{fragment}
+\begin{lstlisting}
+--p=1;q=1 ... [X,O,X,O...]
+playerList1 = X:O:playerList1
+
+--p=2;q=2 ... [X,X,O,O,X,X,O,O...]
+playerList2 = X:X:O:O:playerList2
+
+--p=2;q=1 ... [X,O,O,X,X,O,O,X,X...]
+playerList3 = tail playerList2
+\end{lstlisting}
+\caption{Demonstration of how to produce different \texttt{playerList}s for various values of the {Connect} parameters $p$ and $q$\label{frag:playerList}}
+\end{fragment}
+
+
+
+\subsection{Improving Simulation\label{sec:informal_proof}}
+Analysis performed in the Evaluation chapter shows that the agent detailed above, labelled \textit{Slow}, does not perform competitively. Profiling data (Appendix \ref{app:profiling}) for an empty $6 \times 6$ board suggested the Simulation code should be improved. This makes sense for two reasons:
+\begin{enumerate}
+\item Every time a move is made during Simulation, copies of linked lists are made. There is no conceptual need to take these copies since there is no need to store any of the mid-Simulation positions reached. In an imperative language, this would not be a problem, as there would just be a single mutable array and one element would be updated every time a move was made. 
+\item Every time a move is made, the entire board is checked for $k$ in a row for both players. This involves checking $O(n^{2})$ squares. 
+\end{enumerate}
+\begin{figure}
+\centering
+\scalebox{0.7}{\input{"figs/connectk_st.pstex_t"}}
+\caption{Illustration of the lines which need to be checked for a $k$ in-a-row after each move.\label{fig:connectkst}}
+\end{figure}
+Item 1 can be solved by using unboxed mutable arrays inside the \texttt{ST} {monad}. Item 2 can be solved by being more intelligent about which squares are checked.
+It is possible to find all $k$-in-a-rows by checking only $O(k)$ squares on each move\footnote{$O$ notation may not be the best to use here since boards usually are quite small. For real world existing games, not larger than $n=19$, $k=6$. However if we look at the exact number of squares checked: $6n^{2}$ and $8k-4$, the later is still clearly better.}. Figure \ref{fig:connectkst} shows which lines need to be checked, assuming, without loss of generality, that {X} has just moved into the centre square of figure \ref{fig:connectkst}. The following paragraph justifies this statement.
+
+
+Assume arbitrary, legal, $\texttt{g},\texttt{g'}\in\texttt{Connectk}$ where \sem{g} is \sem{InProgress}, it is X's turn in \sem{g} (without loss of generality), and for arbitrary $\texttt{m}\in\texttt{Move}$, where \sem{m} is an empty square in \sem{g}, \sem{g'} is \sem{g} after move \sem{m}. Checking the lines in figure \ref{fig:connectkst} centred around move \sem{m} in position \sem{g'} to decide weather or not X wins the game, is equivalent to using the \texttt{currentState} function. \textit{Informal Proof:}
+\begin{enumerate}
+\item Neither player has a $k$-in-a-row in \sem{g} since if they did it would contradict the assumption that \sem{g} is \sem{InProgress}.
+\item If, after X moves, a $k$-in-a-row is detected in one of the lines in figure \ref{fig:connectkst} then \sem{currentState g} is \sem{Win X} since that $k$-in-a-row also represents a $k$-in-a-row in \sem{g}. In this case, using \texttt{currentState} and checking figure \ref{fig:connectkst} produce consistent results.
+\item If, after X moves, no $k$-in-a-row is detected in one of the lines in figure \ref{fig:connectkst} then \sem{currentState g} is either \sem{InProgress} or \sem{Stale}. It cannot be \sem{Win O} since O did not have a $k$-in-a-row before X moved (item 1) and the state of O's pieces have not changed since. It cannot be \sem{Win X} since X did not have a $k$-in-a-row before X moved (item 2) and none of the lines involving this most recently added piece contain a $k$-in-a-row (item 2). In this case, using \texttt{currentState} and checking figure \ref{fig:connectkst} produce consistent results.
+\end{enumerate}
+The assumption that the arbitrary game positions must be in progress is valid for two reasons: the core of the library only ever simulates games which are in progress; as soon as the \texttt{doSimulation} function reaches a terminal state, Simulation terminates.
+
+\subsubsection{Arrays and Bounds} 
+One of the problems of programming with arrays is that it is necessary to consider that arrays are not infinite and have bounds. This can be a source of off-by-one errors and other bugs. In this project, rather than considering bounds, all functions access arrays using custom array accessors. Whenever a function requests a value from an out of bounds location, a \texttt{Dummy} player is returned. Conceptually, the board is infinite and consists of a small legal playing area surrounded by an infinite field of \texttt{Dummy} values. \subsubsection{\texttt{Dummy} is a player which...}
+\begin{itemize}
+\item[] Does not have an entry in the \texttt{ScoreTuple} in the game tree.
+\item[] Is unable to win a game.
+\item[] Is able to block other players from winning. 
+\end{itemize}
+A function attempting to search for a $k$-in-a-row which strays off the board is immediately blocked by the \texttt{Dummy} values.
+\subsubsection{Unboxed Mutable Arrays} 
+The type \texttt{Maybe (Player Connectk)} was used to represent the value of a square in the {naive implementation}. This is not suitable for an {unboxed} array since it is a complex data type. To solve this problem,  \texttt{Maybe (Player Connectk)} was made an instance of the \texttt{Enum} class. This provides bijection from \texttt{Maybe (Player Connectk)} to \texttt{Int}. In particular:
+\begin{equation}
+\begin{split}
+&\texttt{Nothing}\rightarrow -1\\
+&\texttt{Just X}\rightarrow 0  \\
+&\texttt{Just O}\rightarrow 1  \\
+&\texttt{Just Dummy}\rightarrow 2 \\
+\end{split}
+\nonumber
+\end{equation}
+The modified array accessors introduced in the previous section deal with this conversion. Functions never deal with the arrays directly. This is important since storing the board as an array of \texttt{Int}s could lead to type safety issues. For example, imagine a function which sums all the elements in the array. This function would type and compile correctly in {Haskell}, even though it does not make sense to sum a list of \texttt{Maybe (Player Connectk)}s.
+\subsubsection{Improved Copde}
+Several monadic functions were written to implement the improved \texttt{doSimulation} code: \texttt{checkNewAddition} checks all the lines as per figure \ref{fig:connectkst}; \texttt{doMove} places a piece for a particular player into a mutable array; \texttt{emptySquares} lists all of the empty squares in a mutable array. The following QuickCheck property specifies the functions based on their equivalence to the existing function, \texttt{currentState}:
+\begin{equation}
+\begin{split}
+&\forall\texttt{g}\in\texttt{Connectk},\texttt{m}\in\texttt{Move}.\texttt{currentState g}=\texttt{InProgress}\implies\\
+&\texttt{m}\in \texttt{emptySquares g}\implies\\
+&\texttt{checkNewAddition m \$ doMove g m p} = \\
+&\begin{cases}
+True  &\texttt{currentState \$ doMove g m p} = \texttt{Win \$ currentPlayer g}\\
+False &\texttt{currentState \$ doMove g m p} = \texttt{InProgress}\\
+False &\texttt{currentState \$ doMove g m p} = \texttt{Stale}
+\end{cases}
+\end{split}
+\nonumber
+\end{equation}
+
+
+\subsection{{WinSave} Heuristic\label{sec:needchooseprime}}
+Recall that the rules of {Connect} specify that a parameter $p$ specifies the number of moves per turn. A `turn' is a sequence of consecutive moves for one player. A `move' is the action of a player marking a single square with their symbol (O or X).
+
+As will be shown in the Evaluation chapter, the agent as described so far, \textit{Medium}, does not perform well against more conventional agents. Profiling showed execution time was distributed fairly uniformly over many functions. This suggested that there was no major bottleneck and further optimization would be a major task. A common, alternative approach to improving efficiency, and therefore number of iterations per unit time, is to improve the quality of the search by altering the Simulation policy \cite{survey}.
+
+In the agent as described so far, the Simulation phase chooses completely random moves. This does not represent rational opponents well. A more realistic way of simulating games might be to use the policy:
+\begin{enumerate}
+\item If current player can win this turn then she should play the winning moves.
+\item If both 
+\begin{enumerate}
+\item The opponent can win when it becomes his turn.\par
+\item The current player is able to block the opponent's win.\par
+\end{enumerate}
+then the current player should play the blocking moves.
+\item Otherwise, play a random move.
+\end{enumerate}
+
+One way to implement this new Simulation policy is to override the default \texttt{doSimulation} function to use this policy. However, the steps described would also perform well as part of the tree policy. Since it is never worth considering moves where the opponent can force a win in the next turn, the policy would serve to prune undesirable nodes from the tree. This policy is referred to as the {WinSave} heuristic throughout the rest of this report.
+
+\subsubsection{Immutable Unboxed Arrays}
+In order to use this modified policy in the tree, it became clear that the \texttt{Connectk} data structure needed to be updated from the {list of lists} representation (figure \ref{fig:list_of_lists}) to an immutable unboxed array representation. Not only did this improve speed performance (see \textit{Fast} agent in Evaluation chapter), but also allowed for a cleaner transition from tree policy to Simulation policy. When using the {list of lists} representation in combination with mutable unboxed arrays a custom conversion function was used. When using mutable and immutable unboxed arrays, the built-in \texttt{freeze} and \texttt{thaw} functions were used. This new data structure for {Connect} games based on immutable arrays is called \texttt{Connectk'}.
+\begin{figure}[]
+\centering
+\subfloat[][X unable to win in the next turn. O to play, 2 moves left.]{
+\scalebox{0.7}{\input{"figs/connectk_line_boring.pstex_t"}}
+\label{fig:heuristic:boring}
+}\linebreak
+\subfloat[][X with 3 potential ways she can win in the next turn. O to play, 2 moves left.]{
+\scalebox{0.7}{\input{"figs/connectk_line_block.pstex_t"}}
+\label{fig:heuristic:block}
+}\linebreak
+\subfloat[][Figure \ref{fig:heuristic:block} after O has played his 2 moves which block all 3 of X's potential wins.]{
+\scalebox{0.7}{\input{"figs/connectk_line_block_expl.pstex_t"}}
+\label{fig:heuristic:blockexpl}
+}
+\linebreak
+\subfloat[][X with 7 potential ways she can win in the next turn. O to play, 2 moves left.]{
+\scalebox{0.7}{\input{"figs/connectk_line_win.pstex_t"}}
+\label{fig:heuristic:win}
+}\linebreak
+\subfloat[][Figure \ref{fig:heuristic:win} after O has chosen move 6. X has 3 potential ways she can win in the next turn. O to play, 1 move left.]{
+\scalebox{0.7}{\input{"figs/connectk_line_win_expl.pstex_t"}}
+\label{fig:heuristic:winexpl}
+}
+\caption{Example of {WinSave} heuristic for $k=4$, $p=2$.\label{fig:winsave}}
+\end{figure}
+
+\subsubsection{Connectk'}
+The data structure is essentially the same as \texttt{Connectk} except that the board is represented as an immutable array and that it carries two lists, \texttt{noteToSelf} and \texttt{noteToNext}. \texttt{noteToSelf} is a list of move chains which will save the current player from loosing when it becomes the opponents turn. If \texttt{noteToSelf} is empty, the current player cannot save himself and has effectively already lost the game. If \texttt{noteToSelf} contains a single, empty move chain, he is safe for at least the next turn and may safely play randomly. \texttt{noteToNext} is a list of move chains allows the current player to win when it next becomes his turn. At the end of a players turn, this list is used to generate the \texttt{noteToSelf} list which the opponent will use for his first move. In a way, this can be seen as the players cooperating, telling each other how to block each other's attacks.
+
+The \texttt{noteToNext} list is populated through a generalization of figure \ref{fig:connectkst}. When a new piece is added, instead of searching for $k$-in-a-row in all of the lines specified, the search aims to find all $k$-in-a-row-with-$p$-gaps (figure \ref{fig:winsave}). This represents all the ways the current player can win when it next becomes his turn, the definition of \texttt{noteToNext}. Similar reasoning to the informal proof in section \ref{sec:informal_proof} can be used to show that it is not possible to get into a situation where there are untracked $k$-in-a-row-with-$p$-gaps on the board since they are either always blocked or the game reaches a terminal state.
+
+\subsubsection{Some examples}
+\begin{itemize}
+\item[] Figure \ref{fig:heuristic:boring} represents a transition from X's turn to O's turn. At the end of X's turn she has \texttt{noteToNext=[]}, that is, there is no way she can win on her next turn. This is converted into O's \texttt{noteToSelf=[[]]}, that is, O does not need to block X and may play randomly.
+\item[] Figure \ref{fig:heuristic:block} represents a transition from X's turn to O's turn. At the end of X's turn she has \texttt{noteToNext=[[1,2],[2,5],[5,6]]}, these represent the move chains which she can use to win on her next turn. This is converted into O's \texttt{noteToSelf=[[1,5],[2,5],[2,6]]}, these represent the move chains which which O can use to block X. In figure \ref{fig:heuristic:blockexpl} he has chosen \texttt{[2,5]}, but any of the others would have been equally valid.
+\item[] Figure \ref{fig:heuristic:win} represents a transition from X's turn to O's turn. At the end of X's turn she has \texttt{noteToNext=[[1,2],[2,5],[5,6],[6,9],[9,10]]}, these represent the move chains which she can use to win on her next turn. This is converted into O's \texttt{noteToSelf=[]}, this effectively says O is unable to block X and has already lost. Figure \ref{fig:heuristic:winexpl} does not represent a legal position in \texttt{Connectk'} since, by this policy, O had already lost the game before moving to 6.
+\end{itemize}
+
+\subsubsection{List Conversion}
+Fragment \ref{frag:game:winsave} shows some of the functions which were required to perform the switching behaviour to convert between the \texttt{noteToNext} to \texttt{noteToSelf} lists as it changes from one players turn to another. Since the functions are general and could be helpful to library users they were added to the public export list of \texttt{MCTS.Game}. \texttt{choose'} generates all the ways of selecting one element from every list in a list of lists. It is detailed in fragment \ref{frag:listmonad}. \verb|(~!!~)| selects one element of a list by index, and returns that element and a list of all the other elements. It is moved here from being a private function in the \texttt{MCTS.Core} module as it became apparent it was useful for more general purposes. \texttt{settify} turns a list into a set by deleting duplicate elements. It is interesting because it was the cause of very confusing bug in this agent.  Although \texttt{prop\_settify} specified the function correctly, {QuickCheck} never generated any arbitrary lists with duplicate elements and \texttt{prop\_settify} always passed. It was discovered that for a significant amount of time, \texttt{settify} would only delete one instance of a duplicate element, rather than all-but-one of the duplicate elements.
+\begin{fragment}
+\begin{lstlisting}
+module MCTS.Game where
+
+--... previous definition ...--
+
+choose' :: [[a]] -> [[a]]
+(~!!~) :: [a] -> Int-> (a,[a])
+settify :: Eq a => [a]->[a]
+\end{lstlisting}
+\caption{\label{frag:game:winsave}Functions added to \texttt{MCTS.Game} public interface.}
+\end{fragment}
+
+\subsubsection{\texttt{Connectk'} as an Instance of \texttt{Game}}
+The only way this differs from the \texttt{Connectk} instance of \texttt{Game} is through the definition of the \texttt{currentState} and \texttt{legalMoves} functions:
+
+\begin{equation}
+\begin{split}
+&\texttt{currentState g} = \\
+&\begin{cases}
+\texttt{Win p}&\text{if the player who isn't \texttt{p}'s turn in \sem{g} and \texttt{noteToSelf g} = \texttt{[]}} \\
+\texttt{Stale}&\text{if \texttt{emptySquares g} = \texttt{[]}}\\
+\texttt{InProgress}&\text{otherwise}\\
+\end{cases}\\
+&\\
+&\texttt{legalMoves g} = \\
+&\begin{cases}
+\texttt{[]}&\text{if \texttt{currentState g} = \texttt{Win \_}}\\
+\text{\texttt{emptySquares g}}&\text{\texttt{noteToSelf g} = \texttt{[[]]}} \\
+\text{\texttt{map head \$ noteToSelf g}}&\text{otherwise} \\
+\end{cases}
+\end{split}
+\nonumber
+\end{equation}
+
+
+
+
+
+
+%\subsubsection{Test Suite}
+%This was tested by modifying an existing project by TODO Connectk which is provided with various agents. An interface to the haskell connectk was written using pipes. This is opposed to the other alternative of using a foreign function interface. There are no performance concerns as very little data is only passed once every few seconds (when each move is made). Since connectk provides a great UI for playing against the connectk agent there was no need to write a direct UI for the game.

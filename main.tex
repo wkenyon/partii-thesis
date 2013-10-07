@@ -1,0 +1,222 @@
+% The master copy of this demo dissertation is held on my filespace
+% on the cl file serve (/homes/mr/teaching/demodissert/)
+
+% Last updated by MR on 2 August 2001
+
+\documentclass[12pt,twoside,notitlepage]{report}
+
+\usepackage{a4}
+\usepackage{verbatim}
+\usepackage{mathtools}
+\usepackage{graphics}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{pdflscape}
+\usepackage{color}
+\usepackage{lscape}
+\usepackage{float}
+\usepackage{amsthm}
+\usepackage{amsfonts}
+\usepackage{url}
+\usepackage{soul}
+\newcommand{\sem}[1]{\mbox{$[\![ \texttt{#1} ]\!]$}}
+\definecolor{listinggray}{gray}{0.9}
+\definecolor{lbcolor}{rgb}{0.9,0.9,0.9}
+\lstloadlanguages{Haskell}
+\usepackage{pdfpages}
+\DeclareGraphicsRule{.pdftex}{pdf}{*}{}
+\DeclareGraphicsRule{.pstex}{eps}{*}{}
+
+
+\floatstyle{ruled}
+\newfloat{fragment}{thp}{lop}[chapter]
+\floatname{fragment}{Fragment}
+
+\definecolor{lightpurple}{rgb}{0.8,0.8,1}
+
+\theoremstyle{definition}
+\newtheorem{lemma}{Lemma}[section]
+
+%\lstset{
+%numbers=left,
+%stepnumber=1,
+%numbersep=5pt,
+%numberstyle=\small\color{black},
+%basicstyle=\ttfamily,
+%keywordstyle=\color{black},
+%commentstyle=\color{black},
+%stringstyle=\color{black},
+%frame=single,
+%tabsize=2,
+%backgroundcolor=\color{lightpurple},
+%caption=Fibonacci numbers pseudo code}
+
+
+\lstnewenvironment{code}
+    {\lstset{}%
+      \csname lst@SetFirstLabel\endcsname}
+    {\csname lst@SaveFirstLabel\endcsname}
+    \lstset{
+      numbers=left,
+      numberstyle=\small\color{black},
+      backgroundcolor=\color{lbcolor},
+      keywordstyle=\color[rgb]{0,0,1},
+      commentstyle=\color[rgb]{0.133,0.545,0.133},
+      stringstyle=\color[rgb]{0.627,0.126,0.941},
+      showstringspaces=False,
+      language=Haskell,
+      basicstyle=\small\ttfamily,
+      flexiblecolumns=false,
+      basewidth={0.5em,0.45em},
+      literate={+}{{$+$}}1 {/}{{$/$}}1 {*}{{$*$}}1 {=}{{$=$}}1
+               {>}{{$>$}}1 {<}{{$<$}}1 {\\}{{$\lambda$}}1
+               {\\\\}{{\char`\\\char`\\}}1
+               {->}{{$\rightarrow$}}2 {>=}{{$\geq$}}2 {<-}{{$\leftarrow$}}2
+               {<=}{{$\leq$}}2 {=>}{{$\Rightarrow$}}2 
+               {>>}{{>>}}2 {>>=}{{>>=}}2
+               {|}{{$\mid$}}1               
+    }
+\graphicspath{{figs/}}
+\usepackage[lofdepth,lotdepth]{subfig}
+
+
+\input{epsf}                            % to allow postscript inclusions
+% On thor and CUS read top of file:
+%     /opt/TeX/lib/texmf/tex/dvips/epsf.sty
+% On CL machines read:
+%     /usr/lib/tex/macros/dvips/epsf.tex
+
+
+
+\raggedbottom                           % try to avoid widows and orphans
+\sloppy
+\clubpenalty1000%
+\widowpenalty1000%
+
+\addtolength{\oddsidemargin}{6mm}       % adjust margins
+\addtolength{\evensidemargin}{-8mm}
+
+\renewcommand{\baselinestretch}{1.1}    % adjust line spacing to make
+                                        % more readable
+\textheight 9.5 true in
+\begin{document}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Title
+
+
+\pagestyle{empty}
+
+\hfill{\LARGE \bf William Kenyon}
+
+\vspace*{60mm}
+\begin{center}
+\Huge
+{\bf A Monte Carlo Tree Search Library in Haskell} \\
+\vspace*{5mm}
+Computer Science Tripos \\
+\vspace*{5mm}
+Emmanuel College \\
+\vspace*{5mm}
+\today  % today's date
+\end{center}
+
+\cleardoublepage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Proforma, table of contents and list of figures
+
+\setcounter{page}{1}
+\pagenumbering{roman}
+\pagestyle{plain}
+
+\chapter*{Proforma}
+
+{\large
+\begin{tabular}{ll}
+Name:               & \bf William Kenyon                       \\
+College:            & \bf Emmanuel College                     \\
+Project Title:      & \bf A Monte Carlo Tree Search Library\\
+                    & \bf in Haskell \\
+Examination:        & \bf Computer Science Tripos 2012        \\
+Word Count:         & \bf 11,000\\
+Project Originator: & \bf Dr Sean Holden                    \\
+Supervisor:         & \bf Dr Sean Holden                    \\ 
+\end{tabular}
+}
+\stepcounter{footnote}
+
+
+\section*{Original Aims of the Project}
+There were two aims for this project. The first was to write a library allowing programmers to use \textit{Monte Carlo Tree Search} (\textit{MCTS}) in the context of game playing in \textit{artificial intelligence} (\textit{AI}). The second was to determine if the success achieved by MCTS at playing \textit{Go} could be translated into the \textit{Connect} family of games.
+
+\section*{Work Completed}
+Over the course of this project, a versatile MCTS library has been constructed. The library can be used to implement game playing \textit{agents} for a large range of games, from single player puzzles to $n$ player, imperfect information, non zero-sum games with simultaneous play. The library is fully documented and supports the implementation of many of the modifications to MCTS proposed in current research. This library is then used to make an agent which plays all games in the Connect family. This agent was able to beat a \textit{minimax} based agent in a 100 game \textit{Freestyle GoMoku} tournament.
+
+\section*{Special Difficulties}
+None.
+
+\newpage
+\section*{Declaration}
+
+I, William Kenyon of Emmanuel College, being a candidate for Part II of the Computer
+Science Tripos, hereby declare
+that this dissertation and the work described in it are my own work,
+unaided except as may be specified below, and that the dissertation
+does not contain material that has already been used to any substantial
+extent for a comparable purpose.
+
+\bigskip
+\leftline{Signed:}
+
+\medskip
+\leftline{Date:}
+
+\cleardoublepage
+
+\tableofcontents
+
+\listoffigures
+
+\newpage
+\section*{Acknowledgements}
+
+Thanks to Dr Sean Holden for supervising, Professor Neil Dodgson for proof reading, and Jestine Ang for offering suggestions to improve sentence structure.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% now for the chapters
+
+\cleardoublepage        % just to make sure before the page numbering
+                        % is changed
+
+\setcounter{page}{1}
+\pagenumbering{arabic}
+\pagestyle{headings}
+
+\input{intro.tex}
+\cleardoublepage
+\input{prep.tex}
+\cleardoublepage
+\input{impl.tex}
+\cleardoublepage
+\input{eval.tex}
+\cleardoublepage
+\input{conc.tex}
+\cleardoublepage
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% the bibliography
+
+\addcontentsline{toc}{chapter}{Bibliography}
+\bibliographystyle{plain}
+\bibliography{main}
+\cleardoublepage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% the appendices
+\appendix
+\input{profiling.tex}
+
+\end{document}
