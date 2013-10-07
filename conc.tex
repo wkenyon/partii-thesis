@@ -1,0 +1,31 @@
+\chapter{Conclusions}
+In this project, an MCTS library and Connect agent were successfully implemented in Haskell.
+\subsubsection{The library...}
+\begin{itemize}
+\item[] Can be used to implement a large range of games, from single-player puzzles to $n$-player, imperfect information, non-zero-sum, simultaneous play games.
+\item[] Allows bespoke customization of the phases of {MCTS} described in the report while providing sensible defaults.
+\item[] Supports the implementation of many of the modifications to {MCTS} proposed in current research.
+\item[] Is user-friendly and fully documented (see Appendix \ref{sec:docs}).
+\end{itemize}
+
+\subsubsection{The {Connect} agent...}
+\begin{itemize}
+\item[] Can play any game in the {Connect} family.
+\item[] Plays in a tactical fashion, akin to humans and other computer players, rather than strategically.
+\item[] Beat a minimax-based agent in a 100-game {Freestyle GoMoku} tournament.
+\item[] Is unable to play {Connect6} games to a good standard.
+\end{itemize}
+The use of Haskell in this project has been a pleasure. Despite the considerable investment in increasing code efficiency, there are significant advantages to using the language:
+\begin{itemize}
+\item[] Functional languages strongly resemble pure mathematics. This often makes the step of converting a mathematical definition of a function into an implementation in code straight-forward.
+\item[] Functional languages are well-suited to test-driven development. It is a clean practice which allows function specifications to be embedded into the code.
+\item[] Haskell supports features such as ad-hoc polymorphism and monadic programming. This makes it better suited to software engineering projects than other functional languages.
+\item[] Very little time was required to debug code; most bugs were caught by the type-checker during compilation. Bugs that slipped the net usually led to failed QuickCheck properties.
+\end{itemize}
+The use of MCTS in this project has been interesting. It is fascinating that a search based upon random simulations and limited domain knowledge can perform well for such a diverse range of problems. It also posed a range of challenging problems during implementation. 
+
+Connect was a poor choice for an example agent for the MCTS library. The game was chosen for the large state space and high branching factor, properties which are shared with {Go}. However, while it is difficult to write an effective utility function for Go, this is not the case for what {Connect}. Although {Go} has simple rules, the emergent complexity is profound. Gelly \& Silver \cite{go} noted that a move made now may not have an effect until 50 or 100 moves later. It was my hope that I might have revealed some of this complexity in {Connect}, but I suspect that most of the time spent simulating these distant scenarios was wasted. This is supported by the fact that the {Lazy} agent performed well, even though it did not run Simulations through to completion. 
+
+A successful {MCTS} agent for {Connect6} has been constructed \cite{connect6}. However, it employs a large amount of domain specific knowledge. I wanted this example agent to remain agnostic to the specific human tactics of the game. An attempt to implement an agent for a more complex game, such as Kriegspiel, may have been a more suitable endeavour.
+
+

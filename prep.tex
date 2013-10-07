@@ -1,0 +1,381 @@
+\chapter{Preparation}
+This chapter details the preparatory work done to enable the development of the \textit{MCTS} library. Section \ref{sec:requirements_analysis} considers what requirements a user\footnote{In this project, the `user' refers to a programmer or developer using the {MCTS} library to write an agent for some arbitrary game.} might have the library. Section \ref{sec:prephs} explains why \textit{Haskell} is a suitable choice of language for the library. The design of the library, and a discussion of how the design meets the requirements can be found in Section \ref{sec:prepdes}.
+
+\section{Requirements Analysis \label{sec:requirements_analysis}}
+\subsection{Top Level Search Requirements}
+\subsubsection{The library must allow the user to...}
+\begin{enumerate}
+\item Perform a certain number of iterations of {MCTS} from a certain game state.\par
+\item Perform as many iterations possible from a certain game state in a given time.\par
+
+\end{enumerate}
+
+During a cursory literature review, it became apparent that {MCTS} is usually utilised via the second method \cite{go,kriegspiel,connect6}. This makes sense as most competitive games are played with a time limit on moves. The inclusion of the first method could be useful for playing games with no time limit, for example, some single player puzzle games. It could also provide a useful tool for evaluating agent performance.
+
+In both items 1 and 2, it is implicit that {MCTS} is started from a singleton game tree, that is a tree with only a root node and no children. It is possible that a user may wish to perform MCTS on a partially populated tree.  
+Figure \ref{fig:subtreewaste} illustrates why this might be desirable. When performing {MCTS} from the start position of node 1, a large tree is built up. The agent then makes the most desirable move, in this case node 2. Since this is a single player game, the agent will then immediately perform {MCTS} with node 2 as the root node. It might seem advantageous for the agent to start {MCTS} on tree B rather than the singleton node 2. This would be able to take advantage of the work done by the search on the previous move and build a bigger tree than would have otherwise been possible in the same time. In fact, performing MCTS on a partial tree is not as useful as it may seem:
+
+\begin{itemize}
+\item[] {MCTS} will usually spend far more work building forest C than tree B (Figure \ref{fig:subtreewaste}). There are, however, two exceptions. When a greedy, non-exploratory Selection algorithm is used, or when the game being considered has a very low branching factor. These exceptions raise the question of why {MCTS} is being used for this problem.
+\item[] The example considered is a one player game. The advantages diminish further for games with more players. For example, if Figure \ref{fig:subtreewaste} represented a 2 player game then node 2 would represent a move for the other player. Therefore, it would be a subtree of tree B that would be used to start the next execution of {MCTS}.
+%\item[] \st{As trees get larger, each iteration of \textit{MCTS} takes longer since selecting a node to expand becomes a more complex decision process. Therefore, starting with a tree already populated with 100 nodes as opposed to a singleton tree might only result in a tree with 50 more nodes}. The Evaluation chapter will show that, in the case of this library, this is not the case.
+\end{itemize}
+%When determining the branch with the highest chances of success, MCTS explores all nodes and their subsequent children (Figure xx). Bringing forward information from a previous search would not significantly reduce the number of searches that are required. 
+In addition, allowing users to perform MCTS on a partial tree would expose the user to a disproportionate increase in complexity, as the tree data structure would need to be exposed across the library interface. Hence, only items 1 and 2 are pursued in this project. 
+
+\begin{figure}[]
+\centering
+\scalebox{0.7}{\input{"figs/subtreewaste.pstex_t"}}
+
+\caption{\label{fig:subtreewaste}Tree produced after many iterations of {MCTS} for a single player game.}
+\end{figure}
+
+\subsection{Search Implementation}
+This section examines how a user may wish to customize the various phases of {MCTS}. It also examines what might be considered suitable defaults for each of the phases.
+\subsubsection{The user must be able to specify how to carry out the...}
+\begin{enumerate}
+\item {Selection} Phase
+\par Most basic Selection algorithm used is {UCB}. {UCB} was first used in the context of {MCTS} in Kocsis \& Szepesv\'{a}ri \cite{kocsis06}. This should be used as default because many of the enhancements upon {UCB} are not as general purpose and are suited to games of a particular type. The value of the exploration constant, $c$, should by default be set to 1.
+\item {Expansion} Phase
+\par Typically, upon expanding a leaf node, either one child node, or all child nodes are added to the tree \cite{survey}.  Which is chosen depends on the domain and computation budget. The {MCTS} library should allow the user to choose the maximum number of nodes to expand into the tree. By setting a value larger than the branching factor of the problem, all child nodes will be added to the tree. By default, a maximum of one node should be added to the tree.
+\item {Simulation} Phase
+\par The default policy for {MCTS} is to select randomly amongst the available actions \cite{survey}. This simple strategy requires no domain knowledge, and repeated trials will most likely cover different areas of the search space. However, games simulated in this way are unlikely to be comparable to those played by rational players. The user should be able to define a bespoke Simulation strategy. They may do this to make Simulations more realistic, or for efficiency reasons.
+\item {Backpropagation} Phase
+\par Users must be able to define how the score tuples in each node are altered when {backpropagating} a certain result. By default, the library should assume a 2 player, zero-sum game. Therefore, in the case of a win, the winning player should have her score increased by one in the score tuple, and the losing player have his score correspondingly decreased. Note that the true, game theory style {score tuple} is obtained by dividing each element by the number of times that the node has been simulated. Certain enhancements to {Backpropagation} have been found in the literature. For example, Xie and Liu \cite{liu09} modify the {Backpropagation} algorithm to weight the results of Simulations performed later in the search higher.
+\end{enumerate}
+
+\subsection{Implementable Game Types}
+Traditional game AI research focuses on zero-sum games with two players, alternating turns, discrete action spaces, deterministic state transitions and perfect information \cite{survey}. {MCTS} has been applied extensively to such games. {Go}, being the iconic example \cite{go}. However, it has also been applied to other game types.
+\subsubsection{The user must be able to write agents for games with...}
+\begin{enumerate}
+\item A single player
+\par \textit{SP-MCTS}, a version of {MCTS} for single players, was introduced by Schadd \cite{schadd11,schadd11t}. This was applied to \textit{Bubble Shooter}.
+\item Multiple players
+\par Cazenave investigated using {MCTS} to play \textit{Multi-Player Go} \cite{cazenave08}. Samothrakis et al. \cite{pacman} used {MCTS} to play \textit{Ms. Pacman} by modelling each ghost as an individual player.
+\item Imperfect information
+\par In games with imperfect information, the game state is only partially observable to both players. Cianciani and Favini used {MCTS} to play {Kriegspiel} \cite{kriegspiel}. {Kriegspiel} has rules that are similar to chess, but the opponents pieces are obscured by a `fog of war'.
+\item Simultaneous play
+\par The \textit{Ms. Pacman} agent, mentioned in item two, is also an example of a simultaneous play game.
+\end{enumerate}
+
+
+\section{Language Choice: Haskell\label{sec:prephs}}
+\textit{Haskell} is a high level language and code can be written clearly and concisely. Until recently, no compilers or interpreters were able to run Haskell code as fast as low level languages such as C. It has been suggested that recent improvements in the \textit{Glasgow Haskell Compiler} (\textit{GHC}) may allow Haskell to be competitive at computational intensive problems such as \textit{MCTS} \cite{holden}.
+
+
+\section{Investigating Haskell Features \& Libraries}
+Many features of \textit{Haskell} used in this project have not been taught in the \textit{Foundations of Functional Programming} course of this tripos. Potentially useful features \& libraries were identified in \textit{Real World Haskell} \cite{rwh}, \textit{A Gentle Introduction to Haskell} \cite{gentle} and the \textit{GHC} documentation \cite{docs}. These features include \textit{type classes}, \textit{associated type families}, \textit{monads}, \textit{lazy evaluation}, \textit{GHC} profiling, the \textit{state transformer monad} (\texttt{Control.Monad.ST}), generating random behaviour (\texttt{System.Random}), \textit{automated unit testing}, the \textit{module} system, (\texttt{QuickCheck}) and documentation generation using \textit{Haddock}. 
+
+\subsection{Type Classes}
+\textit{Type classes} implement \textit{ad hoc polymorphism} or \textit{overloading} \cite{gentle}. They are similar to \textit{interfaces} in the \textit{Object Oriented Programming} (\textit{OOP}) paradigm. Fragment \ref{frag:class} shows an example of a type class, \texttt{Game}, in the context of a library requiring users to define a type representing a game position.
+\begin{fragment}
+\begin{lstlisting}
+--Block 1 - In library code
+class Game a                   
+  legalChildren :: a -> [a]    
+  currentState :: a -> GameState 
+\end{lstlisting}
+\begin{lstlisting}
+--Block 2 - In user code
+instance Game TicTacToe
+  legalChildren = --insert implementation here
+  currentState = --insert implementation here
+\end{lstlisting}
+\caption{An example of a \texttt{Game} \textit{type class} and an instance of that class, \texttt{TicTacToe}.}
+\label{frag:class}
+\end{fragment}
+Block 1 expresses that for any type \texttt{a} to be an instance of the \texttt{Game} class, the functions \texttt{legalChildren} and \texttt{currentState} must be implemented. Block 2 gives the implementation of those functions for the game \texttt{TicTacToe}.
+\subsection{Associated Type Families}
+\textit{Associated Type Families} is a bleeding-edge {Haskell} extension that is currently only specified in {GHC} documentation \cite{docs}. It is a generalisation of type classes to support {ad hoc polymorphism} or {overloading} of data types. It enables several different data types to have the same name, each one associated with a different instance of a type class. Fragment \ref{frag:pacman} expands upon the example given in Fragment \ref{frag:class} by specifying that a \verb|Player| data type must be associated with any instance of the \texttt{Game} type class. It illustrates how {type families} could enable users of the {MCTS} library to define an arbitrary number of sensibly named players. \verb|Player a| has a signature of \verb|*|. This is a \textit{kind signature}, not a {type signature}. It expresses that \verb|Player a| is a concrete type. \verb|Player| has kind \verb|*->*|, which expresses that it takes one type as an argument.
+
+\begin{fragment}
+\begin{lstlisting}
+--Block 1
+class Game a                   
+  data Player a :: *
+  allPlayers :: [Player a]
+
+\end{lstlisting}
+\begin{lstlisting}
+--Block 2
+instance Game Pacman
+  data Player Pacman = Pacman
+                     | Ghost Int
+ 
+  allPlayers = Pacman : (map [1..4] Ghost) 
+  -- (Pacman : (map [1..4] Ghost)) evaluates to
+  -- [Pacman, Ghost 1, Ghost 2, Ghost 3, Ghost 4]
+    
+\end{lstlisting}
+\caption{Definition of the \texttt{Game} type class with an encapsulated data type. An instance of the \texttt{Game} type class for \texttt{Pacman}.}
+\label{frag:pacman}
+\end{fragment}
+
+\subsection{Monads (\texttt{Control.Monad})}
+A \textit{monad} is a concept from a branch of mathematics known as \textit{category theory}. In the context of {Haskell}, however, it is best to think of a {monad} as an \textit{abstract datatype} of actions \cite{docs}. A convenient \texttt{do} notation for writing monadic expressions is provided in {Haskell}. This often makes {monadic} code look similar to code written in an imperative language. This code describes a computation sequence where multiple values are implicitly passed through each step of the sequence. The {monad} wraps up this sequence of computations for execution at some other time. This lends monads to combining {pure} calculations with impure features like \textit{Input/Output} (\textit{I/O}). 
+
+In section \ref{sec:needchooseprime}, the need for a \texttt{choose'} function (fragment \ref{frag:listmonad}) arises. This function is an good example of a particular {monad}, the \textit{list monad}. \texttt{choose'} takes a list of lists of \texttt{b}s, it returns all of the possible ways of choosing one \texttt{b} from each of the input lists (see example output for clarity). It is not immediately clear how to solve this problem in a conventional recursive way (although it is possible). The key to the list monad approach lies on line 4. At this point, \texttt{a} has type \texttt{[b]} and \texttt{choose' mss} has type \texttt{[[b]]}. The \texttt{$\leftarrow$} breaks away this outer list and simultaneously assigns every list in \texttt{choose' mss} to \texttt{a}. This myriad of values of \texttt{a} are then implicitly passed to the next line. This gives rise to a myriad of \texttt{map (:a) ms}s. These values are then wrapped up once again in a list, forming the result of the \texttt{do} block.
+
+
+\begin{fragment}
+\begin{lstlisting}
+choose' :: [[b]] -> [[b]]
+choose' [] = [[]]
+choose' (ms:mss) = do
+                     a <- choose' mss
+                     map (:a) ms 
+
+--note that (:a) is syntactic sugar for \x->(x:a)
+
+-- choose' [] = [[]]
+-- choose' [[]] = []                    
+-- choose' [[1],[2]] = [[1,2]]
+-- choose' [[1,2],[3,4]] = [[1,3],[1,4],[2,3],[2,4]]
+-- choose' [[1,2],[0],[3,4]] = [[1,0,3],[1,0,4],[2,0,3],[2,0,4]]
+
+\end{lstlisting}
+\caption{Illustration of the {list monad} using the \texttt{choose'} function and example output.}
+\label{frag:listmonad}
+\end{fragment}
+
+
+
+Aside from the this and the {I/O} applications, {monads} come in useful in many ways. Section \ref{sec:st} explains how \textit{state transformer monads} can be used to make code more efficient. Section \ref{sec:arbitrary} shows how the generation of arbitrary values of a given type can be wrapped up in a \textit{generator monad}. 
+
+\subsection{Lazy Evaluation}
+%Haskell uses a lazy evaluation strategy. This can be used to represent the entire game tree in full (This means a data structure which conceptually represents the entire game tree is actualy represented as a \textit{Thunk}. As the tree is searched the \textit{Thunk} is expanded and each child is represented as a \textit{Thunk}.). In a strict language, attempting to build an entire game tree would be computationaly unfeasable. A way to get round this problem is to gradually expand 
+Haskell is a \textit{Call by Need} language; it uses a lazy evaluation strategy. Expressions are not computed in the order that they are written. Instead, a \textit{Thunk} is stored which can be expanded later, if required. This feature of the language allows the {Expansion} phase of {MCTS} to be implemented easily.  A data structure that is a conceptual representation of the entire game tree can be created. This would internally be represented by a {Thunk}. When the root node of this tree is required, the {Thunk} is internally expanded into the root node where all of its children are represented as {Thunks}. In a strict language, attempting to build the entire game tree would be computationally unfeasible. An implementation of Expansion would therefore be needed which expands nodes of the game tree as they are required. This is essentially a less general implementation of {Haskell}'s {Thunks}.
+
+
+\subsection{{GHC} Profiling}
+Despite improvements in {GHC}, performance is initially likely to be poor compared to \textit{C} code. It is possible to more efficient fragments of code, but making arbitrary functions more efficient is not regarded as good practice. The largest increase in performance from a program can be extracted by making the most frequently run function more efficient. Profiling in {GHC} is performed by setting a flag at compile time. It gives a full breakdown of which functions consume most CPU time. This can be used to identify the functions that need to be made more efficient.
+
+
+\subsection{The State Transformer Monad (\texttt{Control.Monad.ST})\label{sec:st}}
+The \texttt{ST} {monad} allows programmers to work safely with mutable state \cite{rwh}. This enables the use of {mutable} data structures in {Haskell}. An immutable array, for example, can be \textit{thawed} to a mutable array. This mutable array can be modified in place and then \textit{frozen} into a an immutable array once all mutations have been performed. The critical difference between the \texttt{IO} and \texttt{ST} {monads} is that there is no (safe) function of type \texttt{IO a->a}. Once a value is encapsulated in the \texttt{IO} monad, it cannot be used in pure code again. There is, however, a $\texttt{runST} \texttt{::} \texttt{(}\forall \texttt{s}.\texttt{ST s a -> a)}$ function. As a result, functions which compute values inside the \texttt{ST} {monad} can be broken out and used by pure functions, i.e. functions not inside the \texttt{ST} monad. 
+
+\subsection{Unboxed Arrays}
+In {Haskell}, almost everything is a value, one might have an array of complex data structures, functions, computations wrapped up in monads. In addition, since {Haskell} is call-by-need, each of these things may only be partially evaluated. Therefore, arrays of simple types, such as \texttt{Int}s have this unnecessary overhead supporting unneeded features. For this reason, {Haskell} suports \textit{unboxed arrays} and \textit{unboxed mutable arrays}. These are implemented more like a {C} array, as a sequential block of memory containing sequential concrete values as opposed to pointers to values.
+
+\subsection{Random Behaviour using \texttt{System.Random}\label{sec:rand}}
+It is essential that certain functions have an element of chance to their behaviour in this project. Functions in {Haskell} have to be mathematically pure so this is not possible implicitly. Fragment \ref{frag:random} shows how functions with pseudo-random behaviour can be implemented. Both functions simulate a game through to completion and return the result of the game when a terminal state is reached. \texttt{doSimulation} is unable to perform a statistically random Simulation since it can only pick each move based on some deterministic Selection. \texttt{doSimulation'} can be statistically random as it can base its Selection on the random seed. \texttt{doSimulation'} also returns a seed so that it can be passed into other functions. The initial seed of this chain of psuedo-random functions comes from the \verb|main| function of the agent the user implements. When inside the \verb|IO| {monad}, the user has access to the operating system's entropy pool.
+\begin{fragment}
+\begin{lstlisting}
+doSimulation :: Game a => a -> GameState a
+doSimulation game = ...
+
+--the StdGen type represents a random seed
+doSimulation' :: Game a => a -> StdGen -> (GameState a,StdGen)
+doSimulation' game gen = ...
+\end{lstlisting}
+\caption{Random seed example using \texttt{doSimulation}}
+\label{frag:random}
+\end{fragment}
+
+\subsection{Testing using \texttt{QuickCheck}\label{sec:testing}}
+\label{sec:choose}
+\textit{QuickCheck} is set apart from tools like \emph{JUnit} (a unit testing framework for \emph{Java}) in that there is no need to write any test cases, hundreds are automatically generated. Properties are written to check that certain statements about functions hold. The conventional name for a function which conjoins all properties of a function, \texttt{fun}, is \verb|prop_fun|. Fragment \ref{frag:prop_choose} shows the test code for \verb|choose :: Int -> [a] -> [[a]]|, \verb|choose k xs| returns all of the combinations of \texttt{k} elements from list \texttt{xs}. The two properties tested are: 
+\begin {enumerate}
+\item \verb|choose k xs| should evaluate to a list of length $\binom{n}{k}$, where $n$ is the length of list \verb|xs|
+\item \verb|choose k xs| is a list of lists, where each of the inner lists has length \verb|k|
+\end {enumerate}
+
+\subsubsection{Testing Functions Taking User Defined Data Types}
+Whenever QuickCheck tests a \verb|prop_*| function it needs to generate arbitrary values for all the arguments based on the type signature. This is predefined for embedded data types such as \verb|Int| and \verb|Bool|. However, more complex, user defined types must be made an instance of the \verb|Arbitrary| type class. An example of this can be found in fragment \ref{frag:arbitraryTicTacToe}.
+
+%This is a particularly important type to be able to generate arbitrary values for because once you can generate arbitrary \verb|TicTacToe| values you can test all of the \emph{MCTS} functions which deal with games (making the assumption that if those tests pass for arbitrary \verb|TicTacToe| games then they will pass for games in general).
+
+\begin{fragment}
+\begin{lstlisting}
+prop_choose :: Int -> [Int] -> Property  
+prop_choose k xs = (k' <= length xs') ==> (prop_len k' xs')  .&&. 
+                                          (prop_memb k' xs')     
+  --Skip test cases where k' is less than the length of xs' because 
+  --evaluating choose with these arguments would cause an exception
+  --Test the remaining test cases with prop_len and prop_memb              
+  where
+   prop_len :: Int -> [a] -> Property
+   prop_len k xs = printTestCase 
+   "Checking outer list has length `n choose k` where n 
+   is length of input list and k is the number of elements to be chosen"
+   $ (chooseN (length xs)  k) == (length $ choose k xs)
+   --QuickCheck will output this text if the property fails
+   
+   prop_memb :: Int -> [a] -> Property
+   prop_memb k xs = printTestCase 
+   "Checking inner lists all have length equal to the 
+   number of elements being chosen"
+   $ all ((==k) . length) $ choose k xs
+
+\end{lstlisting}
+\caption{\texttt{prop\symbol{95}choose}}
+\label{frag:prop_choose}
+\end{fragment}
+
+\subsection{Module system}
+Modules provide a way to group related functions. The modules are usually not entirely independent and rely on data structures and functions from other modules. To enable this, modules can \texttt{import} functions from other modules. However, module \texttt{A} can only import function \texttt{fun} from module \texttt{B} if \texttt{B} \texttt{export}s \texttt{fun}. This is called information hiding. Information hiding is especially important when implementing a library since it is not desirable to pollute the user name space or provide access to confusing internal library functions.
+
+In the \textit{Object Oriented Programming} (\textit{OOP}) paradigm, information hiding is provided by access level modifiers (\texttt{private x}, \verb|public y|, \verb|protected z| etc). 
+
+\subsubsection{Documentation Generation using Haddock}
+\textit{Haddock} is a tool similar to \textit{Javadoc}, a documentation generator for Java. Documentation for arbitrary  Haskell code can be generated automatically. Annotations, in the form of comments can be used to add explanation to the automatically generated documentation. 
+
+Clear documentation is especially important for a library interface. Without good documentation, it is difficult to establish how to use a library. See Appendix \ref{sec:docs} for the documentation generated for the MCTS library interface. 
+
+\begin{figure}[]
+\centering
+\scalebox{0.8}{\input{"figs/uml.pstex_t"}}
+
+\caption{\label{fig:uml}Module import/export graph}
+\end{figure}
+\section{Designing the Library\label{sec:prepdes}}
+
+\textit{Universal Modelling Language} (\textit{UML}) is commonly used in the {OOP} paradigm. To the best of my knowledge, no {UML}-like modelling techniques exist for the functional paradigm. This makes sense because just writing out type signatures and data types is a good way to model programs, that's the approach taken here. Although the code fragments are valid {Haskell}, they should be read as if written in a modelling language.
+
+
+\begin{fragment}
+\begin{lstlisting}
+module MCTS.Game where
+import System.Random
+
+class Game a
+  data Player a :: *
+  data GameState a ::*
+  allPlayers :: [Player a]
+  legalChildren :: a -> [a]
+  currentPlayer :: a -> Player a
+  currentState :: a -> GameState a
+  doSimulation :: a -> StdGen -> GameState a
+  
+  -- Defining the default implementations
+  data Player a = X | O
+  
+  data GameState a = InProgress 
+                   | Stale
+                   | Win (Player a)
+                   
+  allPlayers = [X,O]
+  doSimulation = --see Implementation section
+  
+
+
+\end{lstlisting}
+\caption{Detail of the \texttt{MCTS.Game} module}
+\label{frag:module_game}
+\end{fragment}
+
+
+\begin{fragment}
+\begin{lstlisting}
+module MCTS.Config where
+import MCTS.Game
+
+type Plays = Int
+type ScoreTuple a = [(Player a,Double)] 
+--the score tuple is represented as a list of (player, score) pairs.
+
+data MctsConfig = MctsConfig {  
+  expandConst :: Int
+  doSelection :: Game a => [(ScoreTuple a,Plays)] 
+                        -> Player a -> Int
+  --Int in return type is the index of the selected tuple in the list
+  
+  doBackpropagation :: Game a => GameState a
+                              -> (ScoreTuple a, Plays)
+                              -> (ScoreTuple a, Plays)
+}
+
+defaultConfig :: MctsConfig
+--Provides default implementations of the functions in MctsConfig
+
+doUcb :: Game a => Int -> [(ScoreTuple a, Plays)] 
+                -> Player a -> Int
+--Lets user specify what constant of exploration, c,
+--should be used for UCB if not the default, 1.
+
+\end{lstlisting}
+\caption{Detail of the \texttt{MCTS.Config} module}
+\label{frag:module_config}
+\end{fragment}
+
+\begin{fragment}
+\begin{lstlisting}
+module MCTS.Core where
+
+import MCTS.Game
+import MCTS.Config
+import System.Random
+
+doIterativeMcts :: Game a => a -> MctsConfig -> StdGen -> Int 
+                          -> (a,StdGen)
+--The Int is the number of iterations
+
+doTimedMcts :: Game a => a -> MctsConfig -> StdGen -> Int 
+                      -> IO (a,StdGen)
+--The Int is the number of milliseconds to iterate for
+--The IO in the result shows the result is wrapped up in the IO monad
+
+\end{lstlisting}
+\caption{Detail of the \texttt{MCTS.Core} module.}
+\label{frag:module_core}
+\end{fragment}
+
+\subsection{Modular structure}
+Figure \ref{fig:uml} shows the modules in the library. The user can import from any module. If the user wishes to get only basic \texttt{MCTS} functionality they import \texttt{MCTS}. \texttt{MCTS} defines nothing itself, but collects functions from other modules and groups them together for convenience. To configure the {Selection}, {Backpropagation} and {Expansion} phases of the search the user would import the \texttt{MCTS.Config} module. This design may seem somewhat convoluted since it seems that \texttt{MCTS} exports almost all of the functions exported by \texttt{MCTS.Core}, \texttt{MCTS.Game} and \texttt{MCTS.Config}. The usefulness of this design is demonstrated in the implementation chapter as more functions are exported from these modules. The \texttt{MCTS.Sample.*} modules are included for testing purposes, to save space, they would not be distributed with the library.
+
+
+The \texttt{MCTS.Game}, \texttt{MCTS.Config} and \texttt{MCTS.Core} modules are detailed in fragments \ref{frag:module_game}, \ref{frag:module_config} and \ref{frag:module_core} respectively. These modules are also thoroughly documented in appendix \ref{sec:docs}. The \texttt{MCTS.Sample.*} modules are defined in the implementation section. The \texttt{MCTS} module merely groups together functions from other modules, as such, there is nothing to detail.
+
+\subsection{Revisiting requirements analysis (cf section \ref{sec:requirements_analysis})\label{sec:requirements_analysis2}}
+\subsubsection{Library must allow the user to...}
+\begin{enumerate}
+\item Perform a certain number of iterations of {MCTS} from a certain game state.\par
+\item Perform as many iterations possible from a certain game state in a given time.\par
+\end{enumerate}
+The user will be able to do either by calling one of the top level functions \texttt{doIterativeMcts} or \texttt{doTimedMcts}.
+\subsubsection{The user must be able to specify how to carry out the...}
+
+\begin{enumerate}
+\item Selection Phase
+\par The user can use the expression:\par
+\verb|defaultConfig{doSelection = userDoSelection}|
+\par for the \verb|MctsConfig| argument of one of the \verb|do*Mcts| functions to express that the search should be done as default except for selection which should use the users \verb|userDoSelection| function. The type signature of \texttt{doSelection} is now explained. \verb|[(ScoreTuple a,Plays)]| represents list of score tuple, number of plays pairs to select from. \texttt{Player} represents the \texttt{Player} doing the Selection and the result is the index of the input list which has been selected. The default implementation for this function should be {UCB} with $c=1$. Changing the value of the exploration constant $c$ is likely to be such a common requirement that the \verb|doUcb| function is also exposed through the \verb|MCTS.Config| module and can be changed thus:
+\par
+\verb|defaultConfig{doSelection = doUcb 0.25}|
+\item Expansion Phase
+\par The user can use a similar expression to modify \verb|expandConst| to $n$, where $n>0$. This specifies that for each Simulation, a maximum of $n$ nodes are expanded in to the tree. This value will be set to $1$ in the \verb|defaultConfig|.
+
+\item Backpropagation Phase
+\par The user can use a similar expression to modify \verb|doBackpropagation| to their own function. The following explains the type signature of \texttt{doBackpropagation}. \texttt{GameState a} represents the result of a simulated game which is now being propagated back up the tree. The \texttt{(ScoreTuple a, Plays)} types represent a game theory style $n$-tuple, where $n$ is the number of players. The function updates the $n$-tuple based on the result of the Simulation. For example, a result of \verb|Win X| might lead to an increase in the score for \verb|X| in the tuple by 1 and a decrease by 1 for all other players, while a result of \verb|Stale| might leave the tuple exactly the same.
+
+\item Simulation Phase
+\par
+Since Simulation is tightly coupled with the actual implementation of the game used, the design decision was made to make the \verb|doSimulation| function a member of the \verb|Game| typeclass rather than a a member of the \verb|MctsConfig| data structure. A default implementation will still be given, but this time the user can override it by giving an implementation for it in the instance of that particular game. The function takes two arguments: a game in a certain position and a random seed. The function should use the random seed to make pseudo-random moves based on some Simulation policy until a terminal position is reached. It results in the state of that terminal position and a new random seed. The default implementation for this function is to recursively pick one of the positions \verb|legalChildren| with uniform distribution until a terminal position is reached.
+\par 
+\end{enumerate}
+
+\subsubsection{The user must be able to write agents for games with...}
+\begin{enumerate}
+\item A single player
+\par {SP-MCTS} is {MCTS} with a Selection strategy more suited to single player games. Therefore {SP-MCTS} can be implemented in the {MCTS} library by using a custom \texttt{doSelection} function.
+\item Multiple players
+\par An investigation of the various ways of implementing multi player games in {MCTS} can be found in Cazenave \cite{cazenave08}. All depend on a tuple containing scores for all players being stored in each node of the game tree. The \verb|ScoreTuple| type meets these requirements. What is more, since users can define their own \verb|Player| type, they can give the players sensible names to make their implementation clearer.
+
+\item Imperfect information
+\par Cianciani \& Favini \cite{kriegspiel} represent imperfect information by storing only the part of the state which is known in the tree. A probabilistic guess based on a database of previous games is then made about the unknown parts of the board at Simulation time. This is possible in the {MCTS} library by overriding the default \texttt{doSimulation} function.
+
+\item Simultaneous play
+\par These types of games can be reduced to imperfect information games where the most recent move of all other players is not known.
+\end{enumerate}
+
+\section{Development Style}
+Functional programming projects are well suited to \textit{test driven development} \cite{beck03}. A test case or strict specification is written prior to implementing a functional. The functional unit is then developed incrementally, during which, repeated tests are conducted against the specification. Figure \ref{fig:tdd} shows this development cycle in the context of {Haskell} \& {QuickCheck}. Note that functions are initially \texttt{undefined}. This is essentially the totally undefined function, $\bot$, from denotational semantics. It is used here since it has a completely unconstrained type signature and is therefore a valid value for any function. This acts as a base-line to incrementally develop from. Using \texttt{undefined} will allow code to be compiled and tests to run.
+
+When an arbitrary function, \verb|prop_f|, is found in code, the specified function, \verb|f|, will be defined beneath it. Care must be taken never to export \verb|prop_*| functions over the library interface, as the user may not necessarily have {QuickCheck} installed and it would be undesirable to have {QuickCheck} as a dependency to the library.
+
+\begin{figure}[]
+\centering
+\scalebox{1}{\input{"figs/tdd.pstex_t"}}
+
+\caption{Flow diagram illustrating {test driven development} cycle for an arbitrary function \texttt{f}\label{fig:tdd}}
+\end{figure}
